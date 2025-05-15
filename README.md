@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CodeHosp: GitHub for Medical Research 🏥🔬
 
-## Getting Started
+## The Problem: Medical Research's Reproducibility Crisis
 
-First, run the development server:
+> "50% of published medical studies can't be reproduced. We're wasting billions on research that can't be verified."
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Current issues in medical research:
+- 📊 Raw data locked away in private files
+- 💻 Analysis code never shared
+- 🔍 No easy way to verify findings
+- ⚠️ Statistical errors go unnoticed
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## The Solution: CodeHosp
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+CodeHosp is a collaborative platform that brings transparency and reproducibility to medical research by combining:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **GitHub's version control** for research code
+- **Google Drive's accessibility** for datasets
+- **Automated verification** of results
 
-## Learn More
+## Key Features
 
-To learn more about Next.js, take a look at the following resources:
+### 🔍 Study Verification Engine
+- Automatically reruns analyses to confirm published results
+- Flags statistical errors and data anomalies
+- Provides reproducibility score for each study
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 🏆 Incentivized Peer Review
+- Earn "PeerPoints" for reproducing studies and catching errors
+- Leaderboard highlights top contributors
+- Verified badges for high-reputation researchers
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 📂 Research Repository
+- Structured storage for datasets, code, and documentation
+- Version control for all research artifacts
 
-## Deploy on Vercel
+## Example Workflow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Researcher Uploads Study**
+   ```
+   From the website of CodeHosp
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **System Verifies Results**
+   ```
+   ✔️ Analysis ran successfully
+   ⚠️ Warning: p-value adjustment not applied
+   🔍 3 outliers detected in control group
+   ```
+
+3. **Community Improves Research**
+   ```python
+   # Peer suggests improved analysis
+   def better_analysis(data):
+       # Fixed multiple comparison issue
+       return statsmodels.stats.multitest.fdrcorrection(data)
+   ```
+
+## Technology Stack
+
+- **Frontend & Backend**: NextJS
+- **Database**: FireStore + Supabase
+
+**Make medical research transparent, reproducible, and collaborative.**  
+Join us in building the future of credible science.
