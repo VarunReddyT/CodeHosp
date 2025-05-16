@@ -2,7 +2,6 @@
 import Link from "next/link"
 import { Plus, X, ArrowRight, CheckCircle } from "lucide-react"
 import { useState } from "react"
-import { auth } from "@lib/firebase"
 import {supabase} from "@lib/supabase"
 import axios from "axios"
 import { useRouter } from "next/navigation"
@@ -31,12 +30,10 @@ interface Study {
   updatedAt: string,
 }
 
-const user = auth.currentUser
 
 export default function UploadPage() {
   const router = useRouter()
-  const [formData, setFormData] = useState<Omit<Study, 'status' | 'participants' | 'reproductions' | 'issues' | 'createdAt' | 'updatedAt'>>({
-    id : user?.uid || '',
+  const [formData, setFormData] = useState<Omit<Study, 'status' | 'participants' | 'reproductions' | 'issues' | 'createdAt' | 'updatedAt' | 'id'>>({
     title: '',
     authors: [],
     institution: '',
@@ -94,7 +91,7 @@ export default function UploadPage() {
   const handleUploadFile = async (file: File) => {
     if(!file) return
     setIsFileUploading(true)
-    const fileName = `${Date.now()}-${file.name}-${user?.uid}`
+    const fileName = `${Date.now()}-${file.name}`
 
     try{
        const {data : uploadData ,error : uploadError} = await supabase.storage
@@ -135,7 +132,7 @@ export default function UploadPage() {
   const handleUploadCode = async (code: File) => {
     if(!code) return
     setIsCodeUploading(true)
-    const codeName = `${Date.now()}-${code.name}-${user?.uid}`
+    const codeName = `${Date.now()}-${code.name}`
     try{
       const {data : uploadData ,error : uploadError} = await supabase.storage
         .from('codes')
@@ -271,7 +268,6 @@ export default function UploadPage() {
       }
       
       setFormData({
-        id: '',
         title: '',
         authors: [],
         institution: '',
