@@ -85,15 +85,14 @@ export default function DashboardPage() {
   //   }
   // }
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab)
-    setCurrentPage(1) // Reset to first page when changing tabs
-  }
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setCurrentPage(1) // Reset to first page when searching
-  }
+  // const handleSearch = (e: React.FormEvent) => {
+  //   e.preventDefault()
+  //   if (searchQuery.trim() === "") {
+  //     toast.error("Please enter a search query")
+  //     return
+  //   }
+  //   setLoading(true)
+  // }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -111,7 +110,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-8">
+      {/* <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-8">
         <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
@@ -170,38 +169,10 @@ export default function DashboardPage() {
             Immunology
           </span>
         </div>
-      </div>
+      </div> */}
 
       {/* Tabs for different study statuses */}
       <div className="mb-8">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button 
-              className={`${activeTab === 'all' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              onClick={() => handleTabChange('all')}
-            >
-              All
-            </button>
-            <button 
-              className={`${activeTab === 'verified' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              onClick={() => handleTabChange('verified')}
-            >
-              Verified
-            </button>
-            <button 
-              className={`${activeTab === 'issues' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              onClick={() => handleTabChange('issues')}
-            >
-              Issues
-            </button>
-            <button 
-              className={`${activeTab === 'pending' ? 'border-teal-500 text-teal-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-              onClick={() => handleTabChange('pending')}
-            >
-              Pending
-            </button>
-          </nav>
-        </div>
 
         <div className="mt-6">
           {loading ? (
@@ -258,7 +229,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="rounded-lg border bg-white shadow-sm">
           <div className="flex flex-col space-y-1.5 p-6 pb-2">
             <h3 className="text-lg font-medium">Total Studies</h3>
@@ -291,7 +262,7 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-500 mt-1">From {stats.institutionsCount} institutions</p>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }

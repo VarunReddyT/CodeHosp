@@ -1,16 +1,19 @@
 "use client"
 import Link from "next/link"
 import { Plus, X, ArrowRight, CheckCircle } from "lucide-react"
-import { useState } from "react"
-import {supabase} from "@lib/supabase"
+import { useState, useEffect } from "react"
+import { supabase } from "@lib/supabase"
 import axios from "axios"
 import { useRouter } from "next/navigation"
-import {toast} from "react-hot-toast"
-
+import { toast } from "react-hot-toast"
+import { getAuth } from "firebase/auth"
+import { adminAuth } from "@/lib/firebaseAdmin"
 type Status = "verified" | "issues" | "pending"
+
 
 interface Study {
   id: string
+  userId: string
   title: string
   authors: string[]
   institution: string
@@ -34,6 +37,7 @@ interface Study {
 export default function UploadPage() {
   const router = useRouter()
   const [formData, setFormData] = useState<Omit<Study, 'status' | 'participants' | 'reproductions' | 'issues' | 'createdAt' | 'updatedAt' | 'id'>>({
+    userId: '',
     title: '',
     authors: [],
     institution: '',
@@ -55,6 +59,40 @@ export default function UploadPage() {
   const [isFileUploading, setIsFileUploading] = useState(false)
   const [code, setCode] = useState<File | null>(null)
   const [isCodeUploading, setIsCodeUploading] = useState(false)
+
+   useEffect(() => {
+    async function verifyToken() {
+      const token = await getAuth().currentUser?.getIdToken()
+  
+      if (!token) {
+        toast.error("Login to upload a study", {
+          duration: 2000,
+          position: 'top-right',
+        })
+        router.push("/login");
+        return;
+      }
+      console.log("Token:", token)
+  
+      await axios.post("/api/verifytoken", { token })
+        .then((response) => {
+          const { userId, email } = response.data;
+          setFormData((prev) => ({
+            ...prev,
+            userId
+          }));
+        })
+        .catch((error) => {
+          console.error("Token verification failed:", error);
+          toast.error("Please login and try again", {
+            duration: 2000,
+            position: 'top-right',
+          })
+          router.push("/login");
+        });
+    }
+    verifyToken()
+  }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target
@@ -89,12 +127,12 @@ export default function UploadPage() {
   }
 
   const handleUploadFile = async (file: File) => {
-    if(!file) return
+    if (!file) return
     setIsFileUploading(true)
     const fileName = `${Date.now()}-${file.name}`
 
-    try{
-       const {data : uploadData ,error : uploadError} = await supabase.storage
+    try {
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('studies')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -107,19 +145,19 @@ export default function UploadPage() {
         })
         return null
       }
-    const { data: publicURL } = await supabase.storage
-      .from('studies')
-      .getPublicUrl(fileName)
+      const { data: publicURL } = await supabase.storage
+        .from('studies')
+        .getPublicUrl(fileName)
 
-    if (!publicURL || !publicURL.publicUrl) {
-      toast.error('Failed to get public URL for uploaded file', {
-        duration: 2000,
-        position: 'top-right',
-      })
-      return null
-    }
+      if (!publicURL || !publicURL.publicUrl) {
+        toast.error('Failed to get public URL for uploaded file', {
+          duration: 2000,
+          position: 'top-right',
+        })
+        return null
+      }
 
-    return publicURL.publicUrl
+      return publicURL.publicUrl
     }
     catch (error) {
       console.error('Error uploading file:', error)
@@ -130,11 +168,11 @@ export default function UploadPage() {
   }
 
   const handleUploadCode = async (code: File) => {
-    if(!code) return
+    if (!code) return
     setIsCodeUploading(true)
     const codeName = `${Date.now()}-${code.name}`
-    try{
-      const {data : uploadData ,error : uploadError} = await supabase.storage
+    try {
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('codes')
         .upload(codeName, code, {
           cacheControl: '3600',
@@ -238,7 +276,7 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    
+
     try {
       const dataFileUrl = file ? await handleUploadFile(file) : null
       const codeFileUrl = code ? await handleUploadCode(code) : null
@@ -266,8 +304,9 @@ export default function UploadPage() {
           position: 'top-right',
         })
       }
-      
+
       setFormData({
+        userId: '',
         title: '',
         authors: [],
         institution: '',
@@ -316,22 +355,20 @@ export default function UploadPage() {
                   <button
                     type="button"
                     onClick={() => setActiveTab('basic-info')}
-                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'basic-info'
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'basic-info'
                         ? 'border-teal-500 text-teal-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
                     Basic Info
                   </button>
                   <button
                     type="button"
                     onClick={() => handleNextTab('data-code')}
-                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'data-code'
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'data-code'
                         ? 'border-teal-500 text-teal-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                      }`}
                     disabled={!validateBasicInfo()}
                   >
                     Data & Code
@@ -339,11 +376,10 @@ export default function UploadPage() {
                   <button
                     type="button"
                     onClick={() => handleNextTab('methodology')}
-                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'methodology'
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'methodology'
                         ? 'border-teal-500 text-teal-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                      }`}
                     disabled={!validateDataCode()}
                   >
                     Methodology
@@ -351,11 +387,10 @@ export default function UploadPage() {
                   <button
                     type="button"
                     onClick={() => handleNextTab('review')}
-                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                      activeTab === 'review'
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'review'
                         ? 'border-teal-500 text-teal-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
+                      }`}
                     disabled={!validateMethodology()}
                   >
                     Review
@@ -572,7 +607,7 @@ export default function UploadPage() {
                         <div className="flex text-sm text-gray-600">
                           <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
                             <span>Upload a file</span>
-                            <input type="file" className="sr-only" required onChange={handleFileChange}/>
+                            <input type="file" className="sr-only" required onChange={handleFileChange} />
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
@@ -595,7 +630,7 @@ export default function UploadPage() {
                         <div className="flex text-sm text-gray-600">
                           <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
                             <span>Upload a file</span>
-                            <input type="file" className="sr-only" required onChange={handleCodeChange}/>
+                            <input type="file" className="sr-only" required onChange={handleCodeChange} />
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
@@ -706,7 +741,7 @@ export default function UploadPage() {
                       <div>
                         <p className="text-sm text-gray-500">Research Category</p>
                         <p className="font-medium">
-                          {formData.category 
+                          {formData.category
                             ? formData.category.charAt(0).toUpperCase() + formData.category.slice(1)
                             : 'Not provided'}
                         </p>
@@ -798,13 +833,6 @@ export default function UploadPage() {
                     researchers.
                   </p>
                 </div>
-
-                <Link
-                  href="/guidelines"
-                  className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100 w-full"
-                >
-                  View Full Guidelines
-                </Link>
               </div>
             </div>
 

@@ -230,7 +230,7 @@ export default function StudyPage() {
                 <div className="rounded-lg border bg-white shadow-sm">
                   <div className="p-6">
                     <h3 className="text-lg font-medium mb-4">Methodology</h3>
-                    <div className="whitespace-pre-line text-gray-700">{study.methodology}</div>
+                    <div className="whitespace-pre-line text-gray-700">{study.description}</div>
                   </div>
                 </div>
               </>

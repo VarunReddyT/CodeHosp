@@ -57,21 +57,21 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden md:flex items-center space-x-4">
-            <div className="relative">
+            {/* <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
               <input
                 type="search"
                 placeholder="Search studies..."
                 className="pl-9 w-[200px] lg:w-[300px] h-9 bg-gray-50 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
-            </div>
+            </div> */}
 
             {isLoggedIn ? (
               <div className="flex items-center space-x-4">
-                <button className="relative p-2 rounded-full hover:bg-gray-100">
+                {/* <button className="relative p-2 rounded-full hover:bg-gray-100">
                   <Bell className="h-5 w-5" />
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                </button>
+                </button> */}
 
                 <div
                   className="relative"

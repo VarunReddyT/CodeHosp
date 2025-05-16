@@ -39,7 +39,7 @@ export default function StudyCard({ study }) {
               <Link href={`/study/${study.id}`}>{study.title}</Link>
             </h3>
             <p className="text-sm text-gray-500 mt-1">
-              {study.author} · {study.institution} · Published {formattedDate}
+              {study.authors[0]} · {study.institution} · Published {formattedDate}
             </p>
           </div>
           <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.color}`}>

@@ -6,21 +6,27 @@ import { FcGoogle } from "react-icons/fc";
 import { FaUserShield } from "react-icons/fa";
 import {doc, setDoc, getDoc} from "firebase/firestore";
 import { db } from "@lib/firebase";
-
-
+import axios from "axios";
+import { useRouter } from "next/navigation";
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLogin, setIsLogin] = useState(true);
     const [error, setError] = useState("");
-
+    const router = useRouter();
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            const token = await auth.currentUser?.getIdToken();
+
+            if (token) {
+                await axios.post("/api/session", { token });
+            }
+            router.push("/");
         } catch (error: any) {
-            setError(error.message || "Login failed");
+            setError("Invalid email or password, if new user, please sign up");
         }
     };
 
@@ -39,6 +45,11 @@ export default function Login() {
                     createdAt: new Date(),
                 });
             }
+            const token = await auth.currentUser?.getIdToken();
+            if (token) {
+                await axios.post("/api/session", { token });
+            }
+            router.push("/");
         } catch (error: any) {
             setError(error.message || "Google login failed");
         }
@@ -49,6 +60,7 @@ export default function Login() {
         setError("");
         try {
             const result = await createUserWithEmailAndPassword(auth, email, password);
+            console.log(result);
             const user = result.user;
             await setDoc(doc(db, "users", user.uid), {
                 email: user.email,
@@ -56,6 +68,11 @@ export default function Login() {
                 uid: user.uid,
                 createdAt: new Date(),
             });
+            const token = await auth.currentUser?.getIdToken();
+            if (token) {
+                await axios.post("/api/session", { token });
+            }
+            router.push("/");
         } catch (error: any) {
             setError(error.message || "Signup failed");
         }
