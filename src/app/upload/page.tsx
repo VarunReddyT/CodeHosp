@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
 import { getAuth } from "firebase/auth"
 import { adminAuth } from "@/lib/firebaseAdmin"
+
 type Status = "verified" | "issues" | "pending"
 
 
@@ -28,6 +29,7 @@ interface Study {
   abstract: string,
   dataFile: string,
   codeFile: string,
+  expectedOutput: string,
   methodology: string,
   createdAt: string,
   updatedAt: string,
@@ -48,6 +50,7 @@ export default function UploadPage() {
     abstract: '',
     dataFile: '',
     codeFile: '',
+    expectedOutput: '',
     methodology: ''
   })
   const [currentTag, setCurrentTag] = useState('')
@@ -241,7 +244,7 @@ export default function UploadPage() {
   }
 
   const validateDataCode = () => {
-    return file !== null && code !== null
+    return file !== null && code !== null && formData.expectedOutput.trim()
   }
 
   const validateMethodology = () => {
@@ -317,6 +320,7 @@ export default function UploadPage() {
         abstract: '',
         dataFile: '',
         codeFile: '',
+        expectedOutput: '',
         methodology: ''
       })
 
@@ -573,12 +577,6 @@ export default function UploadPage() {
                   <div className="flex justify-between border-t p-6">
                     <button
                       type="button"
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100"
-                    >
-                      Save Draft
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => handleNextTab('data-code')}
                       disabled={!validateBasicInfo()}
                       className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -642,6 +640,20 @@ export default function UploadPage() {
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="expectedOutput" className="block text-sm font-medium text-gray-700">
+                      Expected Output (Final Output of Analysis)*
+                    </label>
+                    <textarea
+                      id="expectedOutput"
+                      value={formData.expectedOutput}
+                      onChange={handleInputChange}
+                      placeholder="Enter expected output of your analysis code (Terminal final output, etc.)"
+                      rows={4}
+                      className="w-full rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent px-3 py-2"
+                    ></textarea>
                   </div>
 
                   <div className="flex justify-between border-t p-6">
@@ -879,7 +891,7 @@ export default function UploadPage() {
               </div>
             </div>
 
-            <div className="rounded-lg border bg-white shadow-sm">
+            {/* <div className="rounded-lg border bg-white shadow-sm">
               <div className="p-6">
                 <h3 className="text-lg font-medium">Need Help?</h3>
               </div>
@@ -891,7 +903,7 @@ export default function UploadPage() {
                   Contact Support
                 </button>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </form>

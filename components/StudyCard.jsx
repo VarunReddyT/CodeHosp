@@ -74,7 +74,7 @@ export default function StudyCard({ study }) {
           </div>
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-gray-500" />
-            <span className="text-gray-700">{study.issues} Issues</span>
+            <span className="text-gray-700">{study.issues.length} Issues</span>
           </div>
         </div>
       </div>
