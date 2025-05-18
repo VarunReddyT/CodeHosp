@@ -14,9 +14,18 @@ import {
   Play,
   Share2,
   Clock,
+  FileCheck,
+  FileSearch
 } from "lucide-react"
 
-type Status = "verified" | "issues" | "pending"
+type Status = "verified" | "issues" | "pending" | "partial"
+
+interface VerificationResult {
+  status: "match" | "close" | "partial" | "mismatch" | "error"
+  output?: string
+  expectedOutput?: string
+  details: string
+}
 
 interface Study {
   title: string
@@ -36,6 +45,7 @@ interface Study {
   methodology: string
   createdAt: string
   updatedAt: string
+  verification?: VerificationResult
 }
 
 const statusConfig = {
@@ -43,6 +53,11 @@ const statusConfig = {
     icon: <CheckCircle className="h-4 w-4" />,
     text: "Verified",
     color: "bg-green-100 text-green-800 border-green-200",
+  },
+  partial: {
+    icon: <FileSearch className="h-4 w-4" />,
+    text: "Partially Verified",
+    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
   },
   issues: {
     icon: <AlertCircle className="h-4 w-4" />,
@@ -54,6 +69,34 @@ const statusConfig = {
     text: "Pending Verification",
     color: "bg-amber-100 text-amber-800 border-amber-200",
   },
+}
+
+const verificationStatusConfig = {
+  match: {
+    icon: <CheckCircle className="h-4 w-4" />,
+    text: "Match",
+    color: "bg-green-100 text-green-800 border-green-200",
+  },
+  close: {
+    icon: <CheckCircle className="h-4 w-4" />,
+    text: "Close Match",
+    color: "bg-green-100 text-green-800 border-green-200",
+  },
+  partial: {
+    icon: <FileSearch className="h-4 w-4" />,
+    text: "Partial Match",
+    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  },
+  mismatch: {
+    icon: <AlertCircle className="h-4 w-4" />,
+    text: "Mismatch",
+    color: "bg-red-100 text-red-800 border-red-200",
+  },
+  error: {
+    icon: <AlertCircle className="h-4 w-4" />,
+    text: "Error",
+    color: "bg-red-100 text-red-800 border-red-200",
+  }
 }
 
 const tabs = [
@@ -140,12 +183,12 @@ export default function StudyPage() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900">{study.title}</h1>
           <div className="flex items-center gap-2 mt-2">
-            {/* <span
+            <span
               className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.color}`}
             >
               {status.icon}
               <span className="ml-1">{status.text}</span>
-            </span> */}
+            </span>
             <span className="text-gray-600">•</span>
             <span className="text-gray-600">Published {formattedDate}</span>
           </div>
@@ -220,7 +263,7 @@ export default function StudyPage() {
                         <span className="text-gray-500 text-sm">Issues Reported</span>
                         <div className="flex items-center mt-1">
                           <AlertCircle className="h-5 w-5 text-teal-600 mr-2" />
-                          <span className="text-2xl font-bold">{study.issues}</span>
+                          <span className="text-2xl font-bold">{study.issues.length}</span>
                         </div>
                       </div>
                     </div>
@@ -230,7 +273,7 @@ export default function StudyPage() {
                 <div className="rounded-lg border bg-white shadow-sm">
                   <div className="p-6">
                     <h3 className="text-lg font-medium mb-4">Methodology</h3>
-                    <div className="whitespace-pre-line text-gray-700">{study.description}</div>
+                    <div className="whitespace-pre-line text-gray-700">{study.methodology}</div>
                   </div>
                 </div>
               </>
@@ -251,8 +294,9 @@ export default function StudyPage() {
                       </div>
                       <a
                         href={study.dataFile}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-gray-100"
-                        download
                       >
                         Download
                       </a>
@@ -268,8 +312,9 @@ export default function StudyPage() {
                       </div>
                       <a
                         href={study.codeFile}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-gray-100"
-                        download
                       >
                         Download
                       </a>
@@ -282,10 +327,45 @@ export default function StudyPage() {
             {activeTab === "verifications" && (
               <div className="rounded-lg border bg-white shadow-sm">
                 <div className="p-6">
-                  <h3 className="text-lg font-medium mb-4">Verification Attempts</h3>
-                  <p className="text-gray-700">This study has been verified {study.reproductions} times.</p>
+                  <h3 className="text-lg font-medium mb-4">Verification Results</h3>
+                  
+                  {study.verification ? (
+                    <div className={`p-4 rounded-lg border ${verificationStatusConfig[study.verification.status].color}`}>
+                      <div className="flex items-center gap-2">
+                        {verificationStatusConfig[study.verification.status].icon}
+                        <h4 className="font-medium">
+                          {verificationStatusConfig[study.verification.status].text}
+                        </h4>
+                      </div>
+                      <p className="mt-2">{study.verification.details}</p>
+                      {study.verification.expectedOutput && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium">Expected Output:</p>
+                          <pre className="text-xs bg-gray-100 p-2 rounded mt-1">
+                            {study.verification.expectedOutput}
+                          </pre>
+                        </div>
+                      )}
+                      {study.verification.output && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium">Actual Output:</p>
+                          <pre className="text-xs bg-gray-100 p-2 rounded mt-1">
+                            {study.verification.output}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-gray-700">No verification results available yet.</p>
+                  )}
+
+                  <div className="mt-6">
+                    <h3 className="text-lg font-medium mb-4">Verification History</h3>
+                    <p className="text-gray-700">This study has been verified {study.reproductions} times.</p>
+                  </div>
+
                   {study.issues.length > 0 && (
-                    <div className="mt-4">
+                    <div className="mt-6">
                       <h4 className="font-medium text-red-600 mb-2">Reported Issues ({study.issues.length})</h4>
                       <div className="space-y-3">
                         {study.issues.map((issue, index) => (
@@ -325,7 +405,7 @@ export default function StudyPage() {
               <h3 className="text-lg font-medium">Authors</h3>
             </div>
             <div className="p-6 pt-0 space-y-4">
-              {study && study.authors && study.authors.map((author, index) => (
+              {study.authors.map((author, index) => (
                 <div key={index} className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
                     <span className="font-medium text-gray-600">
@@ -372,13 +452,13 @@ export default function StudyPage() {
 
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Category</h3>
-                <p className="text-gray-900 mt-1">{study.category}</p>
+                <p className="text-gray-900 mt-1 capitalize">{study.category}</p>
               </div>
 
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Tags</h3>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {study && study.tags && study.tags.map((tag) => (
+                  {study.tags.map((tag) => (
                     <span
                       key={tag}
                       className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-gray-50"

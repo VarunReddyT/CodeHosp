@@ -1,45 +1,42 @@
 "use client"
 import Link from "next/link"
-import { Plus, X, ArrowRight, CheckCircle } from "lucide-react"
+import { Plus, X, ArrowRight, CheckCircle, XCircle, FileSearch, AlertCircle } from "lucide-react"
 import { useState, useEffect } from "react"
 import { supabase } from "@lib/supabase"
 import axios from "axios"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
 import { getAuth } from "firebase/auth"
-import { adminAuth } from "@/lib/firebaseAdmin"
 
 type Status = "verified" | "issues" | "pending"
 
+type VerificationStatus = "match" | "close" | "partial" | "mismatch" | "error"
+
+interface VerificationResult {
+  status: VerificationStatus
+  output?: string
+  expectedOutput?: string
+  details: string
+}
 
 interface Study {
-  id: string
-  userId: string
   title: string
   authors: string[]
   institution: string
   date: string
   category: string
-  status: Status
-  participants: number
-  reproductions: number
-  issues: [],
   tags: string[]
   description: string
-  abstract: string,
-  dataFile: string,
-  codeFile: string,
-  expectedOutput: string,
-  methodology: string,
-  createdAt: string,
-  updatedAt: string,
+  abstract: string
+  expectedOutput: string
+  methodology: string
+  dataFile?: File | null
+  codeFile?: File | null
 }
-
 
 export default function UploadPage() {
   const router = useRouter()
-  const [formData, setFormData] = useState<Omit<Study, 'status' | 'participants' | 'reproductions' | 'issues' | 'createdAt' | 'updatedAt' | 'id'>>({
-    userId: '',
+  const [formData, setFormData] = useState<Study>({
     title: '',
     authors: [],
     institution: '',
@@ -48,25 +45,26 @@ export default function UploadPage() {
     tags: [],
     description: '',
     abstract: '',
-    dataFile: '',
-    codeFile: '',
     expectedOutput: '',
-    methodology: ''
+    methodology: '',
+    dataFile: null,
+    codeFile: null
   })
   const [currentTag, setCurrentTag] = useState('')
   const [currentAuthor, setCurrentAuthor] = useState('')
   const [activeTab, setActiveTab] = useState('basic-info')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
+  const [studyId, setStudyId] = useState<string | null>(null)
+  const [isVerified, setIsVerified] = useState(false)
 
   const [file, setFile] = useState<File | null>(null)
-  const [isFileUploading, setIsFileUploading] = useState(false)
   const [code, setCode] = useState<File | null>(null)
-  const [isCodeUploading, setIsCodeUploading] = useState(false)
 
-   useEffect(() => {
+  useEffect(() => {
     async function verifyToken() {
       const token = await getAuth().currentUser?.getIdToken()
-  
+
       if (!token) {
         toast.error("Login to upload a study", {
           duration: 2000,
@@ -76,7 +74,7 @@ export default function UploadPage() {
         return;
       }
       console.log("Token:", token)
-  
+
       await axios.post("/api/verifytoken", { token })
         .then((response) => {
           const { userId, email } = response.data;
@@ -129,85 +127,6 @@ export default function UploadPage() {
     }
   }
 
-  const handleUploadFile = async (file: File) => {
-    if (!file) return
-    setIsFileUploading(true)
-    const fileName = `${Date.now()}-${file.name}`
-
-    try {
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('studies')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        })
-      if (uploadError) {
-        toast.error(uploadError.message, {
-          duration: 2000,
-          position: 'top-right',
-        })
-        return null
-      }
-      const { data: publicURL } = await supabase.storage
-        .from('studies')
-        .getPublicUrl(fileName)
-
-      if (!publicURL || !publicURL.publicUrl) {
-        toast.error('Failed to get public URL for uploaded file', {
-          duration: 2000,
-          position: 'top-right',
-        })
-        return null
-      }
-
-      return publicURL.publicUrl
-    }
-    catch (error) {
-      console.error('Error uploading file:', error)
-      return null
-    } finally {
-      setIsFileUploading(false)
-    }
-  }
-
-  const handleUploadCode = async (code: File) => {
-    if (!code) return
-    setIsCodeUploading(true)
-    const codeName = `${Date.now()}-${code.name}`
-    try {
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('codes')
-        .upload(codeName, code, {
-          cacheControl: '3600',
-          upsert: false
-        })
-      if (uploadError) {
-        toast.error(uploadError.message, {
-          duration: 2000,
-          position: 'top-right',
-        })
-        return null
-      }
-      const { data: publicURL } = await supabase.storage
-        .from('codes')
-        .getPublicUrl(codeName)
-      if (!publicURL || !publicURL.publicUrl) {
-        toast.error('Failed to get public URL for uploaded code', {
-          duration: 2000,
-          position: 'top-right',
-        })
-        return null
-      }
-      return publicURL.publicUrl
-    }
-    catch (error) {
-      console.error('Error uploading file:', error)
-      return null
-    } finally {
-      setIsCodeUploading(false)
-    }
-  }
-
   const handleRemoveAuthor = (index: number) => {
     setFormData(prev => ({
       ...prev,
@@ -244,11 +163,16 @@ export default function UploadPage() {
   }
 
   const validateDataCode = () => {
+
     return file !== null && code !== null && formData.expectedOutput.trim()
   }
 
   const validateMethodology = () => {
     return formData.description.trim()
+  }
+
+  const validateReview = () => {
+    return isVerified;
   }
 
   const handleNextTab = (nextTab: string) => {
@@ -281,60 +205,59 @@ export default function UploadPage() {
     setIsSubmitting(true)
 
     try {
-      const dataFileUrl = file ? await handleUploadFile(file) : null
-      const codeFileUrl = code ? await handleUploadCode(code) : null
 
-      if (file && !dataFileUrl) {
-        throw new Error('Failed to upload data file')
+      const uploadFormData = new FormData()
+      uploadFormData.append('title', formData.title)
+      formData.authors.forEach(author => uploadFormData.append('authors[]', author))
+      formData.tags.forEach(tag => uploadFormData.append('tags[]', tag))
+      uploadFormData.append('institution', formData.institution)
+      uploadFormData.append('date', formData.date)
+      uploadFormData.append('category', formData.category)
+      uploadFormData.append('methodology', formData.description)
+      uploadFormData.append('abstract', formData.abstract)
+      uploadFormData.append('expectedOutput', formData.expectedOutput)
+      uploadFormData.append('participants', '0');
+      uploadFormData.append('reproductions', '0');
+      uploadFormData.append('issues', JSON.stringify([]));
+      if (file) {
+        uploadFormData.append('dataFile', file)
       }
-      if (code && !codeFileUrl) {
-        throw new Error('Failed to upload code file')
+      if (code) {
+        uploadFormData.append('codeFile', code)
       }
 
-      const response = await axios.post('/api/upload', {
-        ...formData,
-        dataFile: dataFileUrl,
-        codeFile: codeFileUrl,
-        status: 'pending',
-        participants: 0,
-        reproductions: 0,
-        issues: [],
+      const response = await axios.post('/api/upload', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       })
-      if (response.status !== 200) {
-        console.error('Error submitting study:', response.data.message)
-        toast.error('Failed to submit study', {
-          duration: 2000,
+
+      if (response.data.message === "Study published successfully") {
+        setVerificationResult(response.data.verification)
+
+        toast.success(`Study submitted successfully! Status: ${response.data.status}`, {
+          duration: 4000,
           position: 'top-right',
         })
+
+        setActiveTab('verification')
+        setIsVerified(true)
+        setStudyId(response.data.studyId)
+      } else {
+        toast.error(`Error: ${response.data.message}`, {
+          duration: 4000,
+          position: 'top-right',
+        })
+        setIsVerified(false)
       }
-
-      setFormData({
-        userId: '',
-        title: '',
-        authors: [],
-        institution: '',
-        date: '',
-        category: '',
-        tags: [],
-        description: '',
-        abstract: '',
-        dataFile: '',
-        codeFile: '',
-        expectedOutput: '',
-        methodology: ''
-      })
-
-      toast.success('Study submitted successfully!', {
-        duration: 2000,
-        position: 'top-right',
-      })
-      router.push('/dashboard')
-
     } catch (error) {
+      console.error("Submission error:", error)
       toast.error(`Error: ${error instanceof Error ? error.message : 'Submission failed'}`, {
-        duration: 2000,
+        duration: 4000,
         position: 'top-right',
       })
+      setIsVerified(false)
+
     } finally {
       setIsSubmitting(false)
     }
@@ -360,8 +283,8 @@ export default function UploadPage() {
                     type="button"
                     onClick={() => setActiveTab('basic-info')}
                     className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'basic-info'
-                        ? 'border-teal-500 text-teal-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                   >
                     Basic Info
@@ -370,8 +293,8 @@ export default function UploadPage() {
                     type="button"
                     onClick={() => handleNextTab('data-code')}
                     className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'data-code'
-                        ? 'border-teal-500 text-teal-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     disabled={!validateBasicInfo()}
                   >
@@ -381,8 +304,8 @@ export default function UploadPage() {
                     type="button"
                     onClick={() => handleNextTab('methodology')}
                     className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'methodology'
-                        ? 'border-teal-500 text-teal-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     disabled={!validateDataCode()}
                   >
@@ -392,12 +315,23 @@ export default function UploadPage() {
                     type="button"
                     onClick={() => handleNextTab('review')}
                     className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'review'
-                        ? 'border-teal-500 text-teal-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                       }`}
                     disabled={!validateMethodology()}
                   >
                     Review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNextTab('verification')}
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'verification'
+                      ? 'border-teal-500 text-teal-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    disabled={!validateReview()}
+                  >
+                    Verification
                   </button>
                 </nav>
               </div>
@@ -804,11 +738,92 @@ export default function UploadPage() {
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting || isFileUploading || isCodeUploading}
+                      disabled={isSubmitting}
                       className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSubmitting || isFileUploading || isCodeUploading ? 'Submitting...' : 'Submit Study'}
+                      {isSubmitting ? 'Submitting...' : 'Submit Study'}
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'verification' && (
+              <div className="rounded-lg border bg-white shadow-sm">
+                <div className="p-6">
+                  <h3 className="text-lg font-medium">Verification Results</h3>
+                  <p className="text-sm text-gray-500">Your study has been verified</p>
+                </div>
+                <div className="p-6 pt-0 space-y-6">
+                  {verificationResult && (
+                    <div className={`p-4 rounded-lg border ${verificationResult.status === "match" || verificationResult.status === "close"
+                        ? "bg-green-50 border-green-200"
+                        : verificationResult.status === "partial"
+                          ? "bg-yellow-50 border-yellow-200"
+                          : "bg-red-50 border-red-200"
+                      }`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1 rounded-full ${verificationResult.status === "match" || verificationResult.status === "close"
+                            ? "bg-green-100 text-green-600"
+                            : verificationResult.status === "partial"
+                              ? "bg-yellow-100 text-yellow-600"
+                              : "bg-red-100 text-red-600"
+                          }`}>
+                          {verificationResult.status === "match" || verificationResult.status === "close"
+                            ? <CheckCircle className="h-5 w-5" />
+                            : verificationResult.status === "partial"
+                              ? <FileSearch className="h-5 w-5" />
+                              : <AlertCircle className="h-5 w-5" />}
+                        </div>
+                        <div>
+                          <h4 className="font-medium">
+                            {verificationResult.status === "match" ? "Verification Successful" :
+                              verificationResult.status === "close" ? "Close Match" :
+                                verificationResult.status === "partial" ? "Partial Verification" :
+                                  verificationResult.status === "mismatch" ? "Verification Failed" :
+                                    "Verification Error"}
+                          </h4>
+                          <p className="text-sm text-gray-600 mt-1">{verificationResult.details}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {verificationResult?.expectedOutput && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Expected Output</h4>
+                        <div className="bg-gray-50 p-3 rounded border">
+                          <pre className="whitespace-pre-wrap text-sm">{verificationResult.expectedOutput}</pre>
+                        </div>
+                      </div>
+                    )}
+
+                    {verificationResult?.output && (
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Actual Output</h4>
+                        <div className="bg-gray-50 p-3 rounded border">
+                          <pre className="whitespace-pre-wrap text-sm">{verificationResult.output}</pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between border-t pt-6 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('review')}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100"
+                    >
+                      Back to Review
+                    </button>
+                    <Link
+                      href={`/study/${studyId}`}
+                      className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                    >
+                      View Study
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
                   </div>
                 </div>
               </div>

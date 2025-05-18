@@ -20,6 +20,7 @@ export default function Navbar() {
       if (user) {
         setIsLoggedIn(true)
         setUser(user)
+        console.log("User logged in:", user)
       } else {
         setIsLoggedIn(false)
         setUser(null)
@@ -79,7 +80,7 @@ export default function Navbar() {
                   onMouseLeave={() => setIsProfileOpen(false)}
                 >
                   <button className="relative h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="font-medium text-gray-600">{user?.displayName?.[0]}</span>
+                    <span className="font-medium text-gray-600">{user?.email?.[0].toUpperCase()}</span>
                   </button>
                   {isProfileOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-100">

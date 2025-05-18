@@ -66,7 +66,7 @@ export default function StudyCard({ study }) {
         <div className="grid grid-cols-3 gap-4 text-sm">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-500" />
-            <span className="text-gray-700">{study.participants.toLocaleString()} Participants</span>
+            <span className="text-gray-700">{study.participants} Participants</span>
           </div>
           <div className="flex items-center gap-2">
             <FileCode className="h-4 w-4 text-gray-500" />
@@ -86,12 +86,12 @@ export default function StudyCard({ study }) {
         >
           View Details
         </Link>
-        <Link
+        {/* <Link
           href={`/study/${study.id}/run`}
           className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
         >
           Run Verification
-        </Link>
+        </Link> */}
       </div>
     </div>
   )

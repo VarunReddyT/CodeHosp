@@ -54,10 +54,13 @@ export default function DashboardPage() {
   const fetchStudies = async () => {
     try {
       setLoading(true)
-      const response = await axios.get('/api/studies')
+      const response = await axios.get('/api/studies',
+        {
+          validateStatus: () => true,
+        }
+      )
       if(response.status === 404) {
         setError("No studies found")
-        toast.error("No studies found")
         return;
       }
       if(response.status !== 200) {
