@@ -46,6 +46,7 @@ interface Study {
   createdAt: string
   updatedAt: string
   verification?: VerificationResult
+  verifications: number
 }
 
 const statusConfig = {
@@ -361,7 +362,7 @@ export default function StudyPage() {
 
                   <div className="mt-6">
                     <h3 className="text-lg font-medium mb-4">Verification History</h3>
-                    <p className="text-gray-700">This study has been verified {study.reproductions} times.</p>
+                    <p className="text-gray-700">This study has been verified {study.verifications} times.</p>
                   </div>
 
                   {study.issues.length > 0 && (

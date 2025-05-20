@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import Editor from "@monaco-editor/react"
 import { auth } from "@/lib/firebase"
+import { toast } from "react-hot-toast"
 
 type VerificationStepStatus = "completed" | "in-progress" | "pending"
 type VerificationStatus = "match" | "close" | "partial" | "mismatch" | "error"
@@ -187,19 +188,18 @@ export default function RunStudyPage() {
     if (!user || !studyData) return
 
     try {
-      await axios.post('/api/modifications', {
+      await axios.post('/api/modify', {
         studyId: id,
         userId: user.uid,
         originalCode: codeContent,
         modifiedCode: modifiedCode,
-        notes: modificationNotes,
-        verificationResult: verificationResult
+        notes: modificationNotes
       })
       setShowSaveModal(false)
-      alert("Your modifications have been saved successfully!")
+      toast.success("Modifications saved successfully")
     } catch (error) {
       console.error("Failed to save modifications:", error)
-      alert("Failed to save modifications. Please try again.")
+      toast.error("Failed to save modifications")
     }
   }
 
