@@ -8,16 +8,17 @@ import {
   CheckCircle,
   Database,
   Play,
-  Terminal,
-  Code,
-  FileText,
   Save,
   ArrowLeft,
   Loader2,
   AlertCircle,
   FileSearch,
-  XCircle
+  XCircle,
+  Edit,
+  Info
 } from "lucide-react"
+import Editor from "@monaco-editor/react"
+import { auth } from "@/lib/firebase"
 
 type VerificationStepStatus = "completed" | "in-progress" | "pending"
 type VerificationStatus = "match" | "close" | "partial" | "mismatch" | "error"
@@ -42,7 +43,6 @@ interface StudyData {
   dataFile: string
   expectedOutput: string
   methodology: string
-  // Add other study fields as needed
 }
 
 const verificationStatusConfig = {
@@ -104,22 +104,24 @@ function VerificationStep({ number, title, description, status }: VerificationSt
 export default function RunStudyPage() {
   const params = useParams()
   const id = params.id as string
-  const [activeTab, setActiveTab] = useState<"editor" | "terminal" | "results">("editor")
+  const user = auth.currentUser
+  const [activeTab, setActiveTab] = useState<"editor" | "terminal" | "results" | "modify">("editor")
   const [isRunning, setIsRunning] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null)
   const [codeContent, setCodeContent] = useState("")
+  const [modifiedCode, setModifiedCode] = useState("")
   const [studyData, setStudyData] = useState<StudyData | null>(null)
-  const [userDataFile, setUserDataFile] = useState<File | null>(null)
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [modificationNotes, setModificationNotes] = useState("")
 
   const [steps, setSteps] = useState([
     { number: 1, title: "Load Data", description: "Load and inspect the study data", status: "completed" as VerificationStepStatus },
     { number: 2, title: "Run Analysis", description: "Execute the analysis code", status: "in-progress" as VerificationStepStatus },
     { number: 3, title: "Compare Results", description: "Compare your results with the original study", status: "pending" as VerificationStepStatus },
-    { number: 4, title: "Submit Verification", description: "Submit your verification report", status: "pending" as VerificationStepStatus },
+    { number: 4, title: "Submit Modifications (Optional)", description: "Submit your code modifications if needed", status: "pending" as VerificationStepStatus },
   ])
 
-  // Fetch study data on component mount
   useEffect(() => {
     const fetchStudyData = async () => {
       try {
@@ -127,12 +129,12 @@ export default function RunStudyPage() {
         const response = await axios.get(`/api/study?id=${id}`)
         const data = response.data.study
         setStudyData(data)
-        
-        // Fetch the original code file
+
         const codeResponse = await fetch(data.codeFile)
         const code = await codeResponse.text()
         setCodeContent(code)
-        
+        setModifiedCode(code)
+
       } catch (error) {
         console.error("Failed to fetch study data:", error)
       } finally {
@@ -147,50 +149,57 @@ export default function RunStudyPage() {
     
     setIsRunning(true)
     try {
-      const formData = new FormData()
-      formData.append('studyId', id)
-      formData.append('code', codeContent)
-      
-      // Use user's data file if provided, otherwise use original
-      if (userDataFile) {
-        formData.append('dataFile', userDataFile)
-      } else {
-        // Fetch original data file and add to form data
-        const dataResponse = await fetch(studyData.dataFile)
-        const dataBlob = await dataResponse.blob()
-        const dataFile = new File([dataBlob], 'original_data.csv', { type: 'text/csv' })
-        formData.append('dataFile', dataFile)
-      }
-
-      const response = await axios.post('/api/verify', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      const response = await axios.post('/api/verify-study', {
+        studyId: id,
+        codeFile: studyData.codeFile,
+        dataFile: studyData.dataFile,
+        expectedOutput: studyData.expectedOutput
       })
 
       setVerificationResult(response.data)
-      
-      // Update steps
+
       const updatedSteps = [...steps]
       updatedSteps[1].status = "completed"
       updatedSteps[2].status = "in-progress"
       setSteps(updatedSteps)
+      setActiveTab("terminal")
 
-      setActiveTab("results")
+      setTimeout(() => {
+        setActiveTab("results")
+        const finalSteps = [...updatedSteps]
+        finalSteps[2].status = "completed"
+        finalSteps[3].status = "in-progress"
+        setSteps(finalSteps)
+      }, 2000)
+
     } catch (error) {
       setVerificationResult({
         status: "error",
         details: error instanceof Error ? error.message : "Verification failed"
       })
+      setActiveTab("terminal")
     } finally {
       setIsRunning(false)
     }
   }
 
-  const handleDataFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setUserDataFile(file)
+  const handleSaveModification = async () => {
+    if (!user || !studyData) return
+
+    try {
+      await axios.post('/api/modifications', {
+        studyId: id,
+        userId: user.uid,
+        originalCode: codeContent,
+        modifiedCode: modifiedCode,
+        notes: modificationNotes,
+        verificationResult: verificationResult
+      })
+      setShowSaveModal(false)
+      alert("Your modifications have been saved successfully!")
+    } catch (error) {
+      console.error("Failed to save modifications:", error)
+      alert("Failed to save modifications. Please try again.")
     }
   }
 
@@ -230,29 +239,6 @@ export default function RunStudyPage() {
           <h1 className="text-3xl font-bold text-gray-900">Run Verification</h1>
           <p className="text-gray-600 mt-1">Verify the results of "{studyData.title}"</p>
         </div>
-        <div className="flex gap-2">
-          <button className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100">
-            <Save className="h-4 w-4 mr-2" />
-            Save Progress
-          </button>
-          <button 
-            onClick={handleRunAnalysis}
-            disabled={isRunning}
-            className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 mr-2" />
-                Run Analysis
-              </>
-            )}
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -283,8 +269,8 @@ export default function RunStudyPage() {
                   <span>{Math.round(progress)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-teal-600 h-2 rounded-full transition-all duration-300" 
+                  <div
+                    className="bg-teal-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   ></div>
                 </div>
@@ -294,44 +280,17 @@ export default function RunStudyPage() {
 
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="p-6">
-              <h3 className="text-lg font-medium">Study Data</h3>
-              <p className="text-sm text-gray-500">Upload your own dataset or use original</p>
-            </div>
-            <div className="p-6 pt-0">
               <div className="mb-4">
                 <h4 className="font-medium mb-2">Original Dataset:</h4>
-                <a 
-                  href={studyData.dataFile} 
-                  target="_blank" 
+                <a
+                  href={studyData.dataFile}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center text-teal-600 hover:text-teal-800"
                 >
                   <Database className="h-4 w-4 mr-2" />
                   Download Original Data
                 </a>
-              </div>
-              
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                <div className="space-y-1 text-center">
-                  <div className="flex text-sm text-gray-600">
-                    <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
-                      <span>Upload your dataset</span>
-                      <input 
-                        type="file" 
-                        className="sr-only" 
-                        onChange={handleDataFileChange}
-                        accept=".csv,.xlsx,.xls,.tsv,.json"
-                      />
-                    </label>
-                    <p className="pl-1">or drag and drop</p>
-                  </div>
-                  <p className="text-xs text-gray-500">CSV, Excel, JSON files (max 5MB)</p>
-                  {userDataFile && (
-                    <p className="text-sm text-gray-900 mt-2">
-                      Selected: {userDataFile.name}
-                    </p>
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -341,13 +300,31 @@ export default function RunStudyPage() {
         <div className="lg:col-span-2 space-y-6">
           <div className="rounded-lg border bg-white shadow-sm">
             <div className="p-6">
-              <h3 className="text-lg font-medium">Verification Workspace</h3>
-              <p className="text-sm text-gray-500">
-                {activeTab === "editor" ? "Step 2: Run Analysis" : 
-                 activeTab === "terminal" ? "Execution Output" : 
-                 "Step 3: Compare Results"}
-              </p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Verification Workspace</h3>
+                {/* Only show Run Verification button when in editor tab */}
+                {activeTab === "editor" && (
+                  <button
+                    onClick={handleRunAnalysis}
+                    disabled={isRunning}
+                    className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+                  >
+                    {isRunning ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Run Verification
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
+
             <div className="p-6 pt-0">
               <div className="border-b border-gray-200">
                 <nav className="-mb-px flex space-x-8">
@@ -381,24 +358,44 @@ export default function RunStudyPage() {
                   >
                     Results
                   </button>
+                  <button
+                    onClick={() => setActiveTab("modify")}
+                    className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                      activeTab === "modify"
+                        ? "border-teal-500 text-teal-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    Modify (Optional)
+                  </button>
                 </nav>
               </div>
 
               <div className="mt-4 space-y-4">
                 {activeTab === "editor" && (
-                  <>
-                    <div className="relative">
-                      <textarea
-                        value={codeContent}
-                        onChange={(e) => setCodeContent(e.target.value)}
-                        className="w-full h-96 font-mono text-sm bg-gray-900 text-gray-100 p-4 rounded-md resize-none"
-                        spellCheck="false"
-                      />
-                      <div className="absolute bottom-4 right-4 text-xs text-gray-400">
-                        {codeContent.split('\n').length} lines
+                  <div className="rounded-md overflow-hidden border">
+                    <div className="flex items-center justify-between bg-gray-100 px-4 py-2 border-b">
+                      <div className="text-sm font-mono">original_code.py</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">
+                          {codeContent.split('\n').length} lines
+                        </span>
                       </div>
                     </div>
-                  </>
+                    <Editor
+                      height="500px"
+                      language="python"
+                      theme="vs-dark"
+                      value={codeContent}
+                      options={{
+                        readOnly: true,
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                      }}
+                    />
+                  </div>
                 )}
 
                 {activeTab === "terminal" && (
@@ -414,7 +411,7 @@ export default function RunStudyPage() {
                         <div className="mt-2 whitespace-pre-wrap">{verificationResult.output}</div>
                       </>
                     ) : (
-                      <div className="text-gray-500">Run the analysis to see output here</div>
+                      <div className="text-gray-500">Run the verification to see output here</div>
                     )}
                   </div>
                 )}
@@ -422,51 +419,93 @@ export default function RunStudyPage() {
                 {activeTab === "results" && (
                   <div className="space-y-6">
                     {verificationResult ? (
-                      <div className={`p-4 rounded-lg border ${verificationStatusConfig[verificationResult.status].color}`}>
-                        <div className="flex items-center gap-2">
-                          {verificationStatusConfig[verificationResult.status].icon}
-                          <h3 className="font-medium">
-                            {verificationStatusConfig[verificationResult.status].text}
-                          </h3>
-                        </div>
-                        <p className="mt-2">{verificationResult.details}</p>
-                        
-                        {verificationResult.expectedOutput && (
-                          <div className="mt-4">
-                            <h4 className="text-sm font-medium">Expected Output:</h4>
-                            <pre className="mt-1 p-2 bg-gray-100 rounded text-sm overflow-x-auto">
-                              {verificationResult.expectedOutput}
-                            </pre>
+                      <>
+                        <div className={`p-4 rounded-lg border ${verificationStatusConfig[verificationResult.status].color}`}>
+                          <div className="flex items-center gap-2">
+                            {verificationStatusConfig[verificationResult.status].icon}
+                            <h3 className="font-medium">
+                              {verificationStatusConfig[verificationResult.status].text}
+                            </h3>
                           </div>
-                        )}
+                          <p className="mt-2">{verificationResult.details}</p>
+                          
+                          {verificationResult.expectedOutput && (
+                            <div className="mt-4">
+                              <h4 className="text-sm font-medium">Expected Output:</h4>
+                              <pre className="mt-1 p-2 bg-gray-100 rounded text-sm overflow-x-auto">
+                                {verificationResult.expectedOutput}
+                              </pre>
+                            </div>
+                          )}
 
-                        {verificationResult.output && (
-                          <div className="mt-4">
-                            <h4 className="text-sm font-medium">Actual Output:</h4>
-                            <pre className="mt-1 p-2 bg-gray-100 rounded text-sm overflow-x-auto">
-                              {verificationResult.output}
-                            </pre>
-                          </div>
-                        )}
-                      </div>
+                          {verificationResult.output && (
+                            <div className="mt-4">
+                              <h4 className="text-sm font-medium">Actual Output:</h4>
+                              <pre className="mt-1 p-2 bg-gray-100 rounded text-sm overflow-x-auto">
+                                {verificationResult.output}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setActiveTab("modify")}
+                            className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Modify Code (Optional)
+                          </button>
+                        </div>
+                      </>
                     ) : (
                       <div className="p-4 rounded-lg border bg-gray-50 text-center text-gray-500">
-                        Run the analysis to see verification results
+                        Run the verification to see results
                       </div>
                     )}
+                  </div>
+                )}
 
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => {
-                          const updatedSteps = [...steps]
-                          updatedSteps[2].status = "completed"
-                          updatedSteps[3].status = "in-progress"
-                          setSteps(updatedSteps)
+                {activeTab === "modify" && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 p-4 bg-blue-50 rounded-lg text-blue-800">
+                      <Info className="h-5 w-5" />
+                      <p className="text-sm">Modifications are optional. Only make changes if you've identified issues with the original code.</p>
+                    </div>
+                    
+                    <div className="rounded-md overflow-hidden border">
+                      <div className="flex items-center justify-between bg-gray-100 px-4 py-2 border-b">
+                        <div className="text-sm font-mono">modified_code.py</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {modifiedCode.split('\n').length} lines
+                          </span>
+                        </div>
+                      </div>
+                      <Editor
+                        height="500px"
+                        language="python"
+                        theme="vs-dark"
+                        value={modifiedCode}
+                        onChange={(value) => setModifiedCode(value || '')}
+                        options={{
+                          readOnly: false,
+                          minimap: { enabled: false },
+                          fontSize: 14,
+                          wordWrap: 'on',
+                          automaticLayout: true,
                         }}
-                        disabled={!verificationResult}
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowSaveModal(true)}
+                        disabled={modifiedCode === codeContent}
                         className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
                       >
-                        Continue to Submission
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Modifications (Optional)
                       </button>
                     </div>
                   </div>
@@ -476,6 +515,43 @@ export default function RunStudyPage() {
           </div>
         </div>
       </div>
+
+      {/* Save Modifications Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">Save Your Modifications (Optional)</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes about your changes (Optional)
+                </label>
+                <textarea
+                  value={modificationNotes}
+                  onChange={(e) => setModificationNotes(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                  rows={4}
+                  placeholder="Describe what you changed and why..."
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowSaveModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveModification}
+                  className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-md"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

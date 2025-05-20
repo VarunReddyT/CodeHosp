@@ -6,10 +6,17 @@ import util from "util";
 import path from "path";
 import os from "os";
 import fs from "fs/promises";
+// add user id also from firebase auth
+import { getAuth } from "firebase/auth";
+
+const user = getAuth();
+
 const execPromise = util.promisify(exec);
 
 const MAX_CSV_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_PY_SIZE = 1 * 1024 * 1024; // 1MB
+var dataTempFilePath: string | null = null;
+var codeTempDataPath: string | null = null;
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -18,17 +25,16 @@ const DANGEROUS_KEYWORDS = [
 ];
 const ALLOWED_PYTHON_LIBS = [
     'pandas', 'numpy', 'matplotlib', 'seaborn', 'scipy',
-    'sklearn', 'statsmodels', 'math', 'datetime'
+    'sklearn', 'statsmodels', 'math', 'datetime', 'string', 're', 'json', 'csv', 'itertools', 'collections', 'functools', 'random', 'time', 'datetime', 'statistics', 'xml', 'html', 'urllib', 'requests', 'stringio'
 ];
 
 async function uploadFileToSupabase(file: File, bucket: string): Promise<string> {
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
-    const filePath = `${bucket}/${fileName}`;
 
     const { data, error } = await supabase.storage
         .from(bucket)
-        .upload(filePath, fileBuffer, {
+        .upload(fileName, fileBuffer, {
             contentType: file.type,
             upsert: false,
         });
@@ -39,7 +45,7 @@ async function uploadFileToSupabase(file: File, bucket: string): Promise<string>
 
     return supabase.storage
         .from(bucket)
-        .getPublicUrl(filePath).data.publicUrl;
+        .getPublicUrl(fileName).data.publicUrl;
     
 }
 
@@ -95,6 +101,9 @@ async function verifyStudy(codeContent: string, dataContent: string, expectedOut
         };
     }
     
+    dataTempFilePath = dataFilePath;
+    codeTempDataPath = codeFilePath;
+
     return compareOutputs(stdout, expectedOutput);
     
 }
@@ -175,15 +184,14 @@ export async function POST(request: NextRequest) {
 
         // Extract all fields from form data
         const title = formData.get('title') as string;
-        const authors = formData.getAll('authors') as string[];
+        const authors = formData.getAll('authors[]') as string[];
         const institution = formData.get('institution') as string;
         const date = formData.get('date') as string;
         const category = formData.get('category') as string;
         const participants = parseInt(formData.get('participants') as string);
         const reproductions = parseInt(formData.get('reproductions') as string);
-        const issues = formData.getAll('issues') as [];
-        const tags = formData.getAll('tags') as string[];
-        const description = formData.get('description') as string;
+        const issues = formData.getAll('issues[]') as string[];
+        const tags = formData.getAll('tags[]') as string[];
         const abstract = formData.get('abstract') as string;
         const methodology = formData.get('methodology') as string;
         const expectedOutput = formData.get('expectedOutput') as string;
@@ -232,7 +240,7 @@ export async function POST(request: NextRequest) {
         const status = verificationResult.status === "match" || 
                    verificationResult.status === "close" ? "verified" :
                    verificationResult.status === "partial" ? "partial" : "issues";
-        await db.collection("studies").add({
+        const response = await db.collection("studies").add({
             title,
             authors,
             institution,
@@ -243,23 +251,25 @@ export async function POST(request: NextRequest) {
             reproductions,
             issues,
             tags,
-            description,
             abstract,
             dataFile: dataFileUrl,
             codeFile: codeFileUrl,
             expectedOutput,
             methodology,
             createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date().toISOString(),
+            verification: verificationResult,
+            userId : user.currentUser?.uid
         });
 
-        await cleanupFiles([dataFileUrl, codeFileUrl]);
+        await cleanupFiles([dataTempFilePath, codeTempDataPath].filter((p): p is string => typeof p === 'string'));
         
         return NextResponse.json({ message: "Study published successfully",
             status: status,
             verification: verificationResult,
             dataFileUrl,
-            codeFileUrl
+            codeFileUrl,
+            studyId: response.id
          }, { status: 200 });
     }
     catch (error) {

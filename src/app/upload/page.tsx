@@ -228,8 +228,10 @@ export default function UploadPage() {
 
       const response = await axios.post('/api/upload', uploadFormData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${await getAuth().currentUser?.getIdToken()}`
+        },
+        validateStatus: () => true, 
       })
 
       if (response.data.message === "Study published successfully") {

@@ -1,22 +1,14 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabase";
-import { exec } from "child_process";
-import util from "util";
-import path from "path";
-import os from "os";
 import fs from "fs/promises";
-// add user id also from firebase auth
-import { getAuth } from "firebase/auth";
+import { adminAuth } from "@/lib/firebaseAdmin";
+import axios from "axios";
 
-const user = getAuth();
-
-const execPromise = util.promisify(exec);
-
-const MAX_CSV_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_PY_SIZE = 1 * 1024 * 1024; // 1MB
+const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
+const MAX_CSV_SIZE = 5 * 1024 * 1024;
+const MAX_PY_SIZE = 1 * 1024 * 1024;
 var dataTempFilePath: string | null = null;
-var codeTempDataPath: string | null = null;
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -25,8 +17,15 @@ const DANGEROUS_KEYWORDS = [
 ];
 const ALLOWED_PYTHON_LIBS = [
     'pandas', 'numpy', 'matplotlib', 'seaborn', 'scipy',
-    'sklearn', 'statsmodels', 'math', 'datetime', 'string', 're', 'json', 'csv', 'itertools', 'collections', 'functools', 'random', 'time', 'datetime', 'statistics', 'xml', 'html', 'urllib', 'requests', 'stringio'
+    'sklearn', 'statsmodels', 'math', 'datetime', 'string', 
+    're', 'json', 'csv', 'itertools', 'collections', 
+    'functools', 'random', 'time', 'datetime', 'statistics', 
+    'stringio', 'io'
 ];
+
+function sanitizeCode(code: string): string {
+    return code.replace(/\0/g, '');
+}
 
 async function uploadFileToSupabase(file: File, bucket: string): Promise<string> {
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -46,18 +45,66 @@ async function uploadFileToSupabase(file: File, bucket: string): Promise<string>
     return supabase.storage
         .from(bucket)
         .getPublicUrl(fileName).data.publicUrl;
-    
+}
+
+async function executeWithPiston(codeContent: string, dataContent: string): Promise<{ stdout: string, stderr: string | null }> {
+    try {
+        const modifiedCode = codeContent
+            .replace(/pd\.read_csv\(['"].*?['"]\)/g, `pd.read_csv("data.csv")`)
+            .replace(/pd\.read_csv\(StringIO\(.*?\)\)/g, `pd.read_csv("data.csv")`);
+
+        const response = await axios.post(PISTON_API_URL, {
+            language: 'python',
+            version: '3.10.0',
+            files: [
+                {
+                    name: 'main.py',
+                    content: modifiedCode
+                },
+                {
+                    name: 'data.csv',
+                    content: dataContent
+                }
+            ],
+            stdin: '',
+            args: [],
+            compile_timeout: 10000,
+            run_timeout: 10000,
+            compile_memory_limit: -1,
+            run_memory_limit: -1
+        });
+
+        console.log("Piston API response:", response.data);
+
+        return {
+            stdout: response.data.run.stdout || "",
+            stderr: response.data.run.stderr || null
+        };
+    } catch (error) {
+        console.error("Error executing code with Piston:", error);
+        if (axios.isAxiosError(error)) {
+            return {
+                stdout: "",
+                stderr: `Piston API error: ${error.response?.data?.message || error.message}`
+            };
+        }
+        return {
+            stdout: "",
+            stderr: "Unknown execution error"
+        };
+    }
 }
 
 async function verifyStudy(codeContent: string, dataContent: string, expectedOutput: string) {
-    for(const keyword of DANGEROUS_KEYWORDS) {
+    for (const keyword of DANGEROUS_KEYWORDS) {
         if (codeContent.includes(keyword)) {
             return {
-                success: false,
-                message: `Code contains prohibited operation: ${keyword}`
+                status: "error",
+                details: `Code contains prohibited operation: ${keyword}`
             };
         }
     }
+
     const importRegex = /import\s+([a-zA-Z0-9_]+)/g;
     let match;
     const foundImports = new Set<string>();
@@ -74,115 +121,109 @@ async function verifyStudy(codeContent: string, dataContent: string, expectedOut
         };
     }
 
-    const isWindows = process.platform === 'win32';
-    const pythonCommand = isWindows ? 'python' : 'python3';
+    const sanitizedCode = sanitizeCode(codeContent);
+    try {
+        const { stdout, stderr } = await executeWithPiston(sanitizedCode, dataContent);
 
-    const baseTmp = path.join(os.tmpdir(), 'study');
-    const dataFilePath = path.join(baseTmp, 'data.csv');
-    const codeFilePath = path.join(baseTmp, 'code.py');
-    await fs.mkdir(baseTmp, { recursive: true });
-    await fs.writeFile(dataFilePath, dataContent);
+        if (stderr) {
+            return {
+                status: "error",
+                details: `Execution Error: ${stderr}`,
+                output: stdout
+            };
+        }
 
-    codeContent = codeContent.replace(/pd\.read_csv\(([\'"]).*?\1(.*?)\)/g, `pd.read_csv(r"${dataFilePath.replace(/\\/g, '/')}"$2)`);
-    codeContent = codeContent.replace(/pd\.read_csv\(StringIO\(.*?\)(.*?)\)/g, `pd.read_csv(r"${dataFilePath.replace(/\\/g, '/')}"$1)`);
-
-    await fs.writeFile(codeFilePath, codeContent);
-
-    const command = `"${pythonCommand}" "${codeFilePath}"`;
-    const { stdout, stderr } = await execPromise(command, {
-        cwd: baseTmp,
-        maxBuffer: 1024 * 1024 * 10,
-        timeout: 20000
-    });
-    if (stderr && !stdout) {
+        return compareOutputs(stdout, expectedOutput);
+    } catch (error) {
         return {
             status: "error",
-            details: `Execution Error: ${stderr}`
+            details: error instanceof Error ? error.message : "Execution failed"
         };
     }
-    
-    dataTempFilePath = dataFilePath;
-    codeTempDataPath = codeFilePath;
-
-    return compareOutputs(stdout, expectedOutput);
-    
 }
 
 function compareOutputs(output: string, expectedOutput: string) {
     if (output === expectedOutput) {
-    return {
-      status: "match",
-      output,
-      expectedOutput,
-      details: "The output matches the expected output."
+        return {
+            status: "match",
+            output,
+            expectedOutput,
+            details: "The output matches the expected output."
+        }
     }
-  }
-  const actualNum = extractNumber(output);
-  const expectedNum = extractNumber(expectedOutput);
 
-  if (actualNum !== null && expectedNum !== null) {
-    const diff = Math.abs(actualNum - expectedNum);
-    const percentDiff = (diff / Math.abs(expectedNum)) * 100;
+    const actualNum = extractNumber(output);
+    const expectedNum = extractNumber(expectedOutput);
 
-    if (percentDiff < 5) {
-      return {
-        status: "close",
+    if (actualNum !== null && expectedNum !== null) {
+        const diff = Math.abs(actualNum - expectedNum);
+        const percentDiff = (diff / Math.abs(expectedNum)) * 100;
+
+        if (percentDiff < 5) {
+            return {
+                status: "close",
+                output,
+                expectedOutput,
+                details: `The output is close to the expected output. Difference: ${diff.toFixed(2)}`
+            }
+        }
+        else if (percentDiff < 20) {
+            return {
+                status: "partial",
+                output,
+                expectedOutput,
+                details: `The output is partially correct. Difference: ${diff.toFixed(2)}`
+            }
+        }
+    }
+
+    const similarity = calculateStringSimilarity(output, expectedOutput);
+    if (similarity > 0.8) {
+        return {
+            status: "match",
+            output,
+            expectedOutput,
+            details: `The output is similar to the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
+        }
+    }
+    else if (similarity > 0.5) {
+        return {
+            status: "partial",
+            output,
+            expectedOutput,
+            details: `The output is partially correct. Similarity: ${(similarity * 100).toFixed(2)}%`
+        }
+    }
+
+    return {
+        status: "mismatch",
         output,
         expectedOutput,
-        details: `The output is close to the expected output. Difference: ${diff.toFixed(2)}`
-      }
+        details: `The output does not match the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
     }
-    else if (percentDiff < 20) {
-      return {
-        status: "partial",
-        output,
-        expectedOutput,
-        details: `The output is partially correct. Difference: ${diff.toFixed(2)}`
-      }
-    }
-  }
-  const similarity = calculateStringSimilarity(output, expectedOutput);
-  if (similarity > 0.8) {
-    return {
-      status: "match",
-      output,
-      expectedOutput,
-      details: `The output is similar to the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
-    }
-  }
-  else if (similarity > 0.5) {
-    return {
-      status: "partial",
-      output,
-      expectedOutput,
-      details: `The output is partially correct. Similarity: ${(similarity * 100).toFixed(2)}%`
-    }
-  }
-  return {
-    status: "mismatch",
-    output,
-    expectedOutput,
-    details: `The output does not match the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
-  }
 }
 
 function extractNumber(str: string): number | null {
-  const match = str.match(/-?\d+\.?\d*/);
-  return match ? parseFloat(match[0]) : null;
+    const match = str.match(/-?\d+\.?\d*/)
+    return match ? parseFloat(match[0]) : null
 }
 
 function calculateStringSimilarity(str1: string, str2: string): number {
-  const tokens1 = new Set(str1.toLowerCase().split(/\s+/));
-  const tokens2 = new Set(str2.toLowerCase().split(/\s+/));
-  const intersection = new Set([...tokens1].filter(t => tokens2.has(t)));
-  return intersection.size / Math.max(tokens1.size, tokens2.size);
+    const tokens1 = new Set(str1.toLowerCase().split(/\s+/))
+    const tokens2 = new Set(str2.toLowerCase().split(/\s+/))
+    const intersection = new Set([...tokens1].filter(t => tokens2.has(t)))
+    return intersection.size / Math.max(tokens1.size, tokens2.size)
 }
 
 export async function POST(request: NextRequest) {
+    const user = await adminAuth.verifyIdToken(request.headers.get("Authorization")?.split("Bearer ")[1] || "");
+    if (!user) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+    const userId = user.uid;
     try {
         const formData = await request.formData();
-
-        // Extract all fields from form data
+        
         const title = formData.get('title') as string;
         const authors = formData.getAll('authors[]') as string[];
         const institution = formData.get('institution') as string;
@@ -199,9 +240,8 @@ export async function POST(request: NextRequest) {
         const dataFile = formData.get('dataFile') as File;
         const codeFile = formData.get('codeFile') as File;
 
-
         if (!dataFile || !codeFile) {
-            throw new Error("Both data file and code file are required");
+            throw new Error("Data file and code file are required");
         }
         if (dataFile.type !== 'text/csv' && !dataFile.name.endsWith('.csv')) {
             throw new Error("Data file must be a CSV file");
@@ -225,21 +265,21 @@ export async function POST(request: NextRequest) {
         const verificationResult = await verifyStudy(
             codeContent,
             dataContent,
-            expectedOutput
+            expectedOutput,
         );
+        
+        const dataFileUrl = await uploadFileToSupabase(dataFile, "studies");
+        const codeFileUrl = await uploadFileToSupabase(codeFile, "codes");
 
-        const [dataFileUrl, codeFileUrl] = await Promise.all([
-            uploadFileToSupabase(dataFile, "studies"),
-            uploadFileToSupabase(codeFile, "codes")
-        ]);
 
-        if(verificationResult.status === "error") {
+        if (verificationResult.status === "error") {
             return NextResponse.json({ message: verificationResult.details }, { status: 400 });
         }
 
-        const status = verificationResult.status === "match" || 
-                   verificationResult.status === "close" ? "verified" :
-                   verificationResult.status === "partial" ? "partial" : "issues";
+        const status = verificationResult.status === "match" ||
+            verificationResult.status === "close" ? "verified" :
+            verificationResult.status === "partial" ? "partial" : "issues";
+
         const response = await db.collection("studies").add({
             title,
             authors,
@@ -259,31 +299,27 @@ export async function POST(request: NextRequest) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             verification: verificationResult,
-            userId : user.currentUser?.uid
+            verifications : 1,
+            userId: userId,
         });
 
-        await cleanupFiles([dataTempFilePath, codeTempDataPath].filter((p): p is string => typeof p === 'string'));
-        
-        return NextResponse.json({ message: "Study published successfully",
+        if (dataTempFilePath) {
+            await fs.unlink(dataTempFilePath).catch(console.error);
+        }
+
+        return NextResponse.json({
+            message: "Study published successfully",
             status: status,
             verification: verificationResult,
             dataFileUrl,
             codeFileUrl,
             studyId: response.id
-         }, { status: 200 });
+        }, { status: 200 });
     }
     catch (error) {
         console.error("Error publishing study:", error);
-        return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
-    }
-}
-
-async function cleanupFiles(filePaths: string[]) {
-    for (const filePath of filePaths) {
-        try {
-            await fs.unlink(filePath);
-        } catch (error) {
-            console.error(`Error deleting file ${filePath}:`, error);
-        }
+        return NextResponse.json({
+            message: error instanceof Error ? error.message : "Internal Server Error"
+        }, { status: 500 });
     }
 }

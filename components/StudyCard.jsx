@@ -19,6 +19,11 @@ export default function StudyCard({ study }) {
       text: "Pending Verification",
       color: "bg-amber-100 text-amber-800 border-amber-200",
     },
+    partial : {
+      icon: <CheckCircle className="h-4 w-4" />,
+      text: "Partially Verified",
+      color: "bg-blue-100 text-blue-800 border-blue-200",
+    },
   }
 
   const status = statusConfig[study.status]
@@ -50,7 +55,7 @@ export default function StudyCard({ study }) {
       </div>
 
       <div className="p-6 pt-0 pb-4">
-        <p className="text-gray-700 mb-4">{study.description}</p>
+        <p className="text-gray-700 mb-4">{study.methodology}</p>
 
         <div className="flex flex-wrap gap-2 mb-4">
           {study.tags.map((tag) => (
