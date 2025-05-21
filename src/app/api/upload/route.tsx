@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabase";
-import fs from "fs/promises";
+// import fs from "fs/promises";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import axios from "axios";
 
