@@ -8,7 +8,6 @@ import axios from "axios";
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 const MAX_CSV_SIZE = 5 * 1024 * 1024;
 const MAX_PY_SIZE = 1 * 1024 * 1024;
-let dataTempFilePath: string | null = null;
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -302,11 +301,6 @@ export async function POST(request: NextRequest) {
             verifications : 1,
             userId: userId,
         });
-
-        if (dataTempFilePath) {
-            await fs.unlink(dataTempFilePath).catch(console.error);
-        }
-
         return NextResponse.json({
             message: "Study published successfully",
             status: status,
