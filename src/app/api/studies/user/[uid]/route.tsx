@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {db} from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 // import { adminAuth } from "@/lib/firebaseAdmin";
-export async function GET(req: NextRequest, context : { params: Record<string, string> }) {
-    const { uid } = context.params;
+export async function GET(req: NextRequest, { params }: { params: { uid: string } }) {
+    const { uid } = params;
     if (!uid) {
         return NextResponse.json({ error: "Missing user ID" }, { status: 400 });
     }
