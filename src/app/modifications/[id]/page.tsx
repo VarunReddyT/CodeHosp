@@ -33,7 +33,7 @@ export default function UserStudies() {
         const fetchUserStudies = async () => {
             try {
                 setLoading(true)
-                const response = await axios.get(`/api/studies/user/${uid}`);
+                const response = await axios.get(`/api/studies/user?uid=${uid}`)
                 if (response.status !== 200) {
                     toast.error("Failed to fetch studies")
                     setError("Failed to fetch studies")
