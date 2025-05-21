@@ -1,6 +1,7 @@
 "use client"
 import Link from "next/link";
 import { ArrowRight, Database, Play, Award } from "lucide-react"
+import Image from "next/image";
 
 export default function HomePage() {
   return (
@@ -38,10 +39,12 @@ export default function HomePage() {
             <div className="flex-1 relative">
               <div className="relative w-full aspect-square max-w-md mx-auto">
                 <div className="absolute inset-0 bg-gradient-to-r from-teal-200 to-cyan-200 rounded-lg transform rotate-3"></div>
-                <img
-                  src="logo2.png"
+                <Image
+                  src="/logo2.png"
                   alt="CodeHosp Platform"
                   className="relative rounded-lg shadow-xl z-10 transform -rotate-3"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (min-width: 768px) 50vw"
                 />
               </div>
             </div>
@@ -90,7 +93,7 @@ export default function HomePage() {
                 <div>
                   <h4 className="text-lg font-semibold text-gray-900">The Problem</h4>
                   <p className="text-gray-600">
-                    Dr. Smith publishes "Vitamin D cures depression!" but no one can verify his data or methods.
+                    Dr. Smith publishes &quot;Vitamin D cures depression!&quot; but no one can verify his data or methods.
                   </p>
                 </div>
               </div>

@@ -19,7 +19,7 @@ export default function RunStudyPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Run Verification</h1>
-          <p className="text-gray-600 mt-1">Verify the results of "Effects of Vitamin D on Depression in Adults"</p>
+          <p className="text-gray-600 mt-1">Verify the results of &quot;Effects of Vitamin D on Depression in Adults&quot;</p>
         </div>
         <div className="flex gap-2">
           <button className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100">

@@ -1,14 +1,13 @@
 "use client"
 import Link from "next/link"
-import { Plus, X, ArrowRight, CheckCircle, XCircle, FileSearch, AlertCircle } from "lucide-react"
+import { Plus, X, ArrowRight, CheckCircle, FileSearch, AlertCircle } from "lucide-react"
 import { useState, useEffect } from "react"
-import { supabase } from "@lib/supabase"
 import axios from "axios"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
 import { getAuth } from "firebase/auth"
 
-type Status = "verified" | "issues" | "pending"
+// type Status = "verified" | "issues" | "pending"
 
 type VerificationStatus = "match" | "close" | "partial" | "mismatch" | "error"
 
@@ -82,6 +81,7 @@ export default function UploadPage() {
             ...prev,
             userId
           }));
+          console.log("Email:", email);
         })
         .catch((error) => {
           console.error("Token verification failed:", error);

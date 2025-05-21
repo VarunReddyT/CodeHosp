@@ -237,7 +237,7 @@ export default function RunStudyPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Run Verification</h1>
-          <p className="text-gray-600 mt-1">Verify the results of "{studyData.title}"</p>
+          <p className="text-gray-600 mt-1">Verify the results of &quot;{studyData.title}&quot;</p>
         </div>
       </div>
 
@@ -470,7 +470,7 @@ export default function RunStudyPage() {
                   <div className="space-y-6">
                     <div className="flex items-center gap-2 p-4 bg-blue-50 rounded-lg text-blue-800">
                       <Info className="h-5 w-5" />
-                      <p className="text-sm">Modifications are optional. Only make changes if you've identified issues with the original code.</p>
+                      <p className="text-sm">Modifications are optional. Only make changes if you&apos;ve identified issues with the original code.</p>
                     </div>
                     
                     <div className="rounded-md overflow-hidden border">

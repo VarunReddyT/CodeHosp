@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Filter, SortDesc, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import StudyCard from "@/components/StudyCard"
 import axios from "axios"
 import { toast } from "react-hot-toast"
@@ -20,14 +20,14 @@ interface Study {
   description: string
 }
 
-interface Stats {
-  totalStudies: number
-  verificationRate: number
-  activeResearchers: number
-  newStudiesLastMonth: number
-  verificationRateChange: number
-  institutionsCount: number
-}
+// interface Stats {
+//   totalStudies: number
+//   verificationRate: number
+//   activeResearchers: number
+//   newStudiesLastMonth: number
+//   verificationRateChange: number
+//   institutionsCount: number
+// }
 
 export default function DashboardPage() {
   const [studies, setStudies] = useState<Study[]>([])
@@ -35,21 +35,21 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [activeTab, setActiveTab] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [stats, setStats] = useState<Stats>({
-    totalStudies: 0,
-    verificationRate: 0,
-    activeResearchers: 0,
-    newStudiesLastMonth: 0,
-    verificationRateChange: 0,
-    institutionsCount: 0
-  })
+  // const [activeTab, setActiveTab] = useState("all")
+  // const [searchQuery, setSearchQuery] = useState("")
+  // const [stats, setStats] = useState<Stats>({
+  //   totalStudies: 0,
+  //   verificationRate: 0,
+  //   activeResearchers: 0,
+  //   newStudiesLastMonth: 0,
+  //   verificationRateChange: 0,
+  //   institutionsCount: 0
+  // })
 
   useEffect(() => {
     fetchStudies()
     // fetchStats()
-  }, [currentPage, activeTab, searchQuery])
+  }, [currentPage])
 
   const fetchStudies = async () => {
     try {

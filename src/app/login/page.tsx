@@ -25,8 +25,9 @@ export default function Login() {
                 await axios.post("/api/session", { token });
             }
             router.push("/");
-        } catch (error: any) {
+        } catch (error) {
             setError("Invalid email or password, if new user, please sign up");
+            console.error("Login error:", error);
         }
     };
 
@@ -50,8 +51,9 @@ export default function Login() {
                 await axios.post("/api/session", { token });
             }
             router.push("/");
-        } catch (error: any) {
-            setError(error.message || "Google login failed");
+        } catch (error) {
+            setError("Google login failed");
+            console.error("Google login error:", error);
         }
     };
 
@@ -73,8 +75,9 @@ export default function Login() {
                 await axios.post("/api/session", { token });
             }
             router.push("/");
-        } catch (error: any) {
-            setError(error.message || "Signup failed");
+        } catch (error) {
+            setError("Signup failed");
+            console.error("Signup error:", error);
         }
     };
 

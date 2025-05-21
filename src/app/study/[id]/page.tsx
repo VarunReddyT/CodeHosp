@@ -14,7 +14,6 @@ import {
   Play,
   Share2,
   Clock,
-  FileCheck,
   FileSearch
 } from "lucide-react"
 
@@ -36,7 +35,7 @@ interface Study {
   status: Status
   participants: number
   reproductions: number
-  issues: any[]
+  issues: string[]
   tags: string[]
   description: string
   abstract: string
@@ -365,7 +364,7 @@ export default function StudyPage() {
                     <p className="text-gray-700">This study has been verified {study.verifications} times.</p>
                   </div>
 
-                  {study.issues.length > 0 && (
+                  {/* {study.issues.length > 0 && (
                     <div className="mt-6">
                       <h4 className="font-medium text-red-600 mb-2">Reported Issues ({study.issues.length})</h4>
                       <div className="space-y-3">
@@ -380,7 +379,7 @@ export default function StudyPage() {
                         ))}
                       </div>
                     </div>
-                  )}
+                  )} */}
                 </div>
               </div>
             )}

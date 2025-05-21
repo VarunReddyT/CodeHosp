@@ -8,7 +8,7 @@ import axios from "axios";
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 const MAX_CSV_SIZE = 5 * 1024 * 1024;
 const MAX_PY_SIZE = 1 * 1024 * 1024;
-var dataTempFilePath: string | null = null;
+let dataTempFilePath: string | null = null;
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -37,7 +37,7 @@ async function uploadFileToSupabase(file: File, bucket: string): Promise<string>
             contentType: file.type,
             upsert: false,
         });
-
+    console.log("Upload response:", data);
     if (error) {
         throw new Error(`Failed to upload file: ${error.message}`);
     }
