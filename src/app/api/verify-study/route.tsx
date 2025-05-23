@@ -5,6 +5,7 @@ import {db} from "@/lib/firebase";
 import { increment, doc, updateDoc } from "firebase/firestore";
 
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
+const COMPARISON_API_URL = "https://varunreddy24-comparator.hf.space/compare";
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -84,13 +85,33 @@ async function executeWithPiston(codeContent: string, csvContent: string): Promi
     }
 }
 
-function compareOutputs(output: string, expectedOutput: string) {
+async function compareWithAPI(output: string, expectedOutput: string) {
+    try {
+        const response = await axios.post(COMPARISON_API_URL, {
+            expected: expectedOutput,
+            actual: output
+        });
+        
+        return {
+            similarity: response.data.composite_score,
+            result: response.data.result
+        };
+    } catch (error) {
+        console.error("Comparison API error:", error);
+        return {
+            similarity: 0,
+            result: "Comparison failed"
+        };
+    }
+}
+
+async function compareOutputs(output: string, expectedOutput: string) {
     if (output.trim() === expectedOutput.trim()) {
         return {
             status: "match",
             output,
             expectedOutput,
-            details: "The output matches the expected output."
+            details: "Perfect or near-perfect match. Auto-verified."
         };
     }
 
@@ -103,56 +124,64 @@ function compareOutputs(output: string, expectedOutput: string) {
 
         if (percentDiff < 5) {
             return {
-                status: "close",
+                status: "match",
                 output,
                 expectedOutput,
-                details: `The output is close to the expected output. Difference: ${diff.toFixed(2)}`
+                details: "Perfect or near-perfect match. Auto-verified."
             };
         } else if (percentDiff < 20) {
             return {
                 status: "partial",
                 output,
                 expectedOutput,
-                details: `The output is partially correct. Difference: ${diff.toFixed(2)}`
+                details: "Moderate similarity. Review recommended."
             };
         }
     }
 
-    const similarity = calculateStringSimilarity(output, expectedOutput);
-    if (similarity > 0.8) {
+    const { similarity, result } = await compareWithAPI(output, expectedOutput);
+    
+    if (similarity >= 0.95) {
         return {
             status: "match",
             output,
             expectedOutput,
-            details: `The output is similar to the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
+            details: result
         };
-    } else if (similarity > 0.5) {
+    } else if (similarity >= 0.90) {
+        return {
+            status: "match",
+            output,
+            expectedOutput,
+            details: result
+        };
+    } else if (similarity >= 0.85) {
         return {
             status: "partial",
             output,
             expectedOutput,
-            details: `The output is partially correct. Similarity: ${(similarity * 100).toFixed(2)}%`
+            details: result
+        };
+    } else if (similarity >= 0.80) {
+        return {
+            status: "partial",
+            output,
+            expectedOutput,
+            details: result
+        };
+    } else {
+        return {
+            status: "mismatch",
+            output,
+            expectedOutput,
+            details: result
         };
     }
-
-    return {
-        status: "mismatch",
-        output,
-        expectedOutput,
-        details: `The output does not match the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
-    };
 }
 
 function extractNumber(str: string): number | null {
     const match = str.match(/-?\d+\.?\d*/);
     return match ? parseFloat(match[0]) : null;
-}
-
-function calculateStringSimilarity(str1: string, str2: string): number {
-    const tokens1 = new Set(str1.toLowerCase().split(/\s+/));
-    const tokens2 = new Set(str2.toLowerCase().split(/\s+/));
-    const intersection = new Set([...tokens1].filter(t => tokens2.has(t)));
-    return intersection.size / Math.max(tokens1.size, tokens2.size);
 }
 
 export async function POST(req: NextRequest) {
@@ -171,7 +200,6 @@ export async function POST(req: NextRequest) {
         
         const [codeBucket, ...codePathParts] = codeFileModified.split("/");
         const codePath = codePathParts.join("/");
-
 
         const { data: csvData, error: csvError } = await supabase
             .storage
@@ -226,7 +254,7 @@ export async function POST(req: NextRequest) {
             }, { status: 500 });
         }
 
-        const result = compareOutputs(stdout, expectedOutput);
+        const result = await compareOutputs(stdout, expectedOutput);
 
         await updateDoc(doc(db, "studies", studyId), {
             verifications : increment(1),

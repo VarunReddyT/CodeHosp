@@ -1,12 +1,21 @@
 import re
 import numpy as np
 from sentence_transformers import SentenceTransformer, util
+import os
 
+cache_dir = "/tmp/hf_cache"
+
+os.makedirs(cache_dir, exist_ok=True)
+
+os.environ["HF_HOME"] = cache_dir
+os.environ["TRANSFORMERS_CACHE"] = f"{cache_dir}/transformers"
+os.environ["SENTENCE_TRANSFORMERS_HOME"] = f"{cache_dir}/sentence_transformers"
+os.environ["HF_DATASETS_CACHE"] = f"{cache_dir}/datasets"
 
 class Comparator:
     def __init__(self):
         self.semantic_model = SentenceTransformer(
-            "sentence-transformers/all-mpnet-base-v2"
+            "paraphrase-MiniLM-L6-v2"
         )
     def result(self, composite_score: float) -> str:
         if composite_score >= 0.95:

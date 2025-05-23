@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 codehosp-d3354-firebase-adminsdk-fbsvc-f61da55461.json
+*pretrained_model

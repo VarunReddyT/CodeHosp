@@ -1,11 +1,11 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabase";
-// import fs from "fs/promises";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import axios from "axios";
 
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
+const COMPARATOR_API_URL = "https://varunreddy24-comparator.hf.space/compare";
 const MAX_CSV_SIZE = 5 * 1024 * 1024;
 const MAX_PY_SIZE = 1 * 1024 * 1024;
 const DANGEROUS_KEYWORDS = [
@@ -94,6 +94,26 @@ async function executeWithPiston(codeContent: string, dataContent: string): Prom
     }
 }
 
+async function compareOutputsAPI(output: string, expectedOutput: string) {
+    try {
+        const response = await axios.post(COMPARATOR_API_URL, {
+            expected: expectedOutput,
+            actual: output
+        });
+        
+        return {
+            similarity: response.data.composite_score,
+            result: response.data.result
+        };
+    } catch (error) {
+        console.error("Error comparing outputs:", error);
+        return {
+            similarity: 0,
+            result: "Comparison failed"
+        };
+    }
+}
+
 async function verifyStudy(codeContent: string, dataContent: string, expectedOutput: string) {
     for (const keyword of DANGEROUS_KEYWORDS) {
         if (codeContent.includes(keyword)) {
@@ -132,7 +152,7 @@ async function verifyStudy(codeContent: string, dataContent: string, expectedOut
             };
         }
 
-        return compareOutputs(stdout, expectedOutput);
+        return await compareOutputs(stdout, expectedOutput);
     } catch (error) {
         return {
             status: "error",
@@ -141,13 +161,13 @@ async function verifyStudy(codeContent: string, dataContent: string, expectedOut
     }
 }
 
-function compareOutputs(output: string, expectedOutput: string) {
+async function compareOutputs(output: string, expectedOutput: string) {
     if (output === expectedOutput) {
         return {
             status: "match",
             output,
             expectedOutput,
-            details: "The output matches the expected output."
+            details: "Perfect or near-perfect match. Auto-verified."
         }
     }
 
@@ -160,10 +180,10 @@ function compareOutputs(output: string, expectedOutput: string) {
 
         if (percentDiff < 5) {
             return {
-                status: "close",
+                status: "match",
                 output,
                 expectedOutput,
-                details: `The output is close to the expected output. Difference: ${diff.toFixed(2)}`
+                details: "Perfect or near-perfect match. Auto-verified."
             }
         }
         else if (percentDiff < 20) {
@@ -171,47 +191,58 @@ function compareOutputs(output: string, expectedOutput: string) {
                 status: "partial",
                 output,
                 expectedOutput,
-                details: `The output is partially correct. Difference: ${diff.toFixed(2)}`
+                details: "Moderate similarity. Review recommended."
             }
         }
     }
 
-    const similarity = calculateStringSimilarity(output, expectedOutput);
-    if (similarity > 0.8) {
+    const { similarity, result } = await compareOutputsAPI(output, expectedOutput);
+    
+    if (similarity >= 0.95) {
         return {
             status: "match",
             output,
             expectedOutput,
-            details: `The output is similar to the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
+            details: result
         }
     }
-    else if (similarity > 0.5) {
+    else if (similarity >= 0.90) {
+        return {
+            status: "close",
+            output,
+            expectedOutput,
+            details: result
+        }
+    }
+    else if (similarity >= 0.85) {
         return {
             status: "partial",
             output,
             expectedOutput,
-            details: `The output is partially correct. Similarity: ${(similarity * 100).toFixed(2)}%`
+            details: result
         }
     }
-
-    return {
-        status: "mismatch",
-        output,
-        expectedOutput,
-        details: `The output does not match the expected output. Similarity: ${(similarity * 100).toFixed(2)}%`
+    else if (similarity >= 0.80) {
+        return {
+            status: "partial",
+            output,
+            expectedOutput,
+            details: result
+        }
+    }
+    else {
+        return {
+            status: "mismatch",
+            output,
+            expectedOutput,
+            details: result
+        }
     }
 }
 
 function extractNumber(str: string): number | null {
     const match = str.match(/-?\d+\.?\d*/)
     return match ? parseFloat(match[0]) : null
-}
-
-function calculateStringSimilarity(str1: string, str2: string): number {
-    const tokens1 = new Set(str1.toLowerCase().split(/\s+/))
-    const tokens2 = new Set(str2.toLowerCase().split(/\s+/))
-    const intersection = new Set([...tokens1].filter(t => tokens2.has(t)))
-    return intersection.size / Math.max(tokens1.size, tokens2.size)
 }
 
 export async function POST(request: NextRequest) {
