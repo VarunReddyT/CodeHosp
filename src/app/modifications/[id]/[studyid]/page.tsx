@@ -81,6 +81,7 @@ export default function StudyModificationsPage() {
         ))
       }
     } catch (error) {
+        console.error("Error approving modification:", error)
       toast.error("Failed to approve modification")
     }
   }
@@ -98,6 +99,7 @@ export default function StudyModificationsPage() {
         ))
       }
     } catch (error) {
+        console.error("Error rejecting modification:", error)
       toast.error("Failed to reject modification")
     }
   }

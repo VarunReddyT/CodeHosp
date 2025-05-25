@@ -188,7 +188,7 @@ export default function LeaderboardPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredLeaderboard.length > 0 ? (
-                    filteredLeaderboard.map((user, index) => {
+                    filteredLeaderboard.map((user) => {
                       const rank = data!.leaderboard.findIndex((u) => u.id === user.id) + 1
                       return (
                         <tr key={user.id} className="hover:bg-gray-50">

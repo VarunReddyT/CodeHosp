@@ -8,8 +8,8 @@ export default function AboutPage() {
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-gray-900 mb-6">Revolutionizing Medical Research Transparency</h2>
           <p className="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-            CodeHosp is transforming how medical research is conducted, shared, and verified. We're building the world's
-            first comprehensive platform for reproducible medical science, where transparency isn't just encouraged—it's
+            CodeHosp is transforming how medical research is conducted, shared, and verified. We&apos;re building the world&apos;s
+            first comprehensive platform for reproducible medical science, where transparency isn&apos;t just encouraged—it&apos;s
             built into the system.
           </p>
         </div>
