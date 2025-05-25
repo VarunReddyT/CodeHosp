@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { CheckCircle, AlertCircle, Clock, FileCode, Users } from "lucide-react"
 
-export default function ModificationsCard({ study }) {
+export default function ModificationsCard({ study, url }) {
   const statusConfig = {
     verified: {
       icon: <CheckCircle className="h-4 w-4" />,
@@ -85,17 +85,11 @@ export default function ModificationsCard({ study }) {
 
       <div className="flex justify-between border-t pt-4 p-6 bg-gray-50">
         <Link
-          href={`/study/${study.id}`}
+          href={url}
           className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-gray-100"
         >
           View Details
         </Link>
-        {/* <Link
-          href={`/study/${study.id}/run`}
-          className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-        >
-          Run Verification
-        </Link> */}
       </div>
     </div>
   )

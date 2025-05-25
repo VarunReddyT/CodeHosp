@@ -332,6 +332,27 @@ export async function POST(request: NextRequest) {
             verifications : 1,
             userId: userId,
         });
+
+        let additionalPoints = 0;
+        if(verificationResult.status === "match" || verificationResult.status === "close") {
+            additionalPoints = 100;
+        }
+        else if(verificationResult.status === "partial") {
+            additionalPoints = 40;
+        }
+        const userRef = db.collection("users").doc(userId);
+        const userDoc = await userRef.get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            const currentPoints = userData?.points || 0;
+            await userRef.update({
+                points: currentPoints + additionalPoints + 50,
+                studies: (userData?.studies || 0) + 1,
+                contributions: (userData?.contributions || 0) + 1,
+                lastUpdated: new Date().toISOString(),
+            });
+        }
+
         return NextResponse.json({
             message: "Study published successfully",
             status: status,

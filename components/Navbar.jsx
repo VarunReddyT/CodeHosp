@@ -1,16 +1,16 @@
 "use client"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Menu, X, Search, Bell, Mail } from "lucide-react"
-import { auth, provider } from "@lib/firebase"
+import { Menu, X, Search, Mail } from "lucide-react"
+import { auth } from "@lib/firebase"
 import { signOut, onAuthStateChanged } from "firebase/auth"
-
+import { useRouter } from "next/navigation"
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-
+  const router = useRouter()
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
   }
@@ -32,6 +32,9 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await signOut(auth)
+      setIsLoggedIn(false)
+      setUser(null)
+      router.push("/")
     } catch (err) {
       alert("Logout failed: " + err.message)
     }
@@ -123,13 +126,8 @@ export default function Navbar() {
             ) : (
               <div className="flex items-center space-x-2">
                 <Link href="/login" type="button">
-                  <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 cursor-pointer">
-                    Log in
-                  </button>
-                </Link>
-                <Link href="/login" type="button">
                   <button className="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 cursor-pointer">
-                    Sign up
+                    Log in / Sign up
                   </button>
                 </Link>
               </div>

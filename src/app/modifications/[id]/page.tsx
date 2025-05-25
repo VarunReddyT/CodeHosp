@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
-import StudyCard from "@/components/StudyCard"
+import ModificationsCard from "@/components/ModificationsCard"
 import axios from "axios"
 import {toast} from 'react-hot-toast'
 interface Study {
@@ -33,7 +33,13 @@ export default function UserStudies() {
         const fetchUserStudies = async () => {
             try {
                 setLoading(true)
-                const response = await axios.get(`/api/studies/user?uid=${uid}`)
+                const response = await axios.get(`/api/studies/user?uid=${uid}`,{
+                    validateStatus : () => true,
+                })
+                if(response.status === 404) {
+                    setError("No studies found for this user")
+                    return;
+                }
                 if (response.status !== 200) {
                     toast.error("Failed to fetch studies")
                     setError("Failed to fetch studies")
@@ -94,9 +100,10 @@ export default function UserStudies() {
             ) : (
                 <div className="grid grid-cols-1  gap-6">
                     {studies.map((study) => (
-                        <StudyCard
+                        <ModificationsCard
                             key={study.id}
                             study={study}
+                            url={`/modifications/${uid}/${study.id}`}
                         />
                     ))}
                 </div>
