@@ -1,16 +1,19 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Menu, X, Search, Mail } from "lucide-react"
 import { auth } from "@lib/firebase"
 import { signOut, onAuthStateChanged } from "firebase/auth"
 import { useRouter } from "next/navigation"
+
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [user, setUser] = useState(null)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const router = useRouter()
+  const profileRef = useRef(null)
+
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
   }
@@ -20,13 +23,34 @@ export default function Navbar() {
       if (user) {
         setIsLoggedIn(true)
         setUser(user)
-        console.log("User logged in:", user)
       } else {
         setIsLoggedIn(false)
         setUser(null)
       }
     })
-    return () => unsubscribe()
+
+    // Click outside handler
+    const handleClickOutside = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    // Escape key handler
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsProfileOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener("keydown", handleEscape)
+
+    return () => {
+      unsubscribe()
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("keydown", handleEscape)
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -61,13 +85,8 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden md:flex items-center space-x-4">
-
             {isLoggedIn ? (
               <div className="flex items-center space-x-4">
-                {/* <button className="relative p-2 rounded-full hover:bg-gray-100">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                </button> */}
                 <div className="relative">
                   <button className="relative p-2 rounded-full hover:bg-gray-100">
                     <Link href={`/modifications/${user?.uid}`}>
@@ -77,15 +96,22 @@ export default function Navbar() {
                 </div>
 
                 <div
+                  ref={profileRef}
                   className="relative"
                   onMouseEnter={() => setIsProfileOpen(true)}
-                  onMouseLeave={() => setIsProfileOpen(false)}
+                  onMouseLeave={() => {}}
                 >
-                  <button className="relative h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                  <button 
+                    className="relative h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center"
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  >
                     <span className="font-medium text-gray-600">{user?.email?.[0].toUpperCase()}</span>
                   </button>
                   {isProfileOpen && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-100">
+                    <div 
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border border-gray-100"
+                      onMouseLeave={() => setIsProfileOpen(false)}
+                    >
                       <div className="px-4 py-2 text-sm text-gray-700 font-medium">My Account</div>
                       <hr className="my-1" />
                       <Link

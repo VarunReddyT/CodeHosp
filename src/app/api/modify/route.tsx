@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
             originalCode: originalCode,
             notes: notes,
             timestamp: new Date().toISOString(),
-            approved : false,
+            approved : "none"
         });
         return NextResponse.json({ message: "Modification saved successfully" }, { status: 200 });
     }
@@ -27,14 +27,12 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const studyId = searchParams.get("studyId");
-    console.log("Fetching modifications for study ID:", studyId);
     if (!studyId) {
         return NextResponse.json({ error: "Missing study ID" }, { status: 400 });
     }
     try {
         const modificationsRef = collection(db, "modifications");
         const querySnapshot = await getDocs(query(modificationsRef, where("studyId", "==", studyId)));
-        console.log(querySnapshot);
         const modifications = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         if (modifications.length === 0) {
             return NextResponse.json({ message: "No modifications found for this study" }, { status: 404 });

@@ -98,9 +98,7 @@ export default function LeaderboardPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">PeerPoints Leaderboard</h1>
           <p className="text-gray-600 mt-1">Recognizing top contributors to scientific reproducibility</p>
-          {(data?.currentUserRank ?? 0) > 0 && (
             <p className="text-sm text-teal-600 mt-1">Your current rank: #{data?.currentUserRank}</p>
-          )}
         </div>
       </div>
 
@@ -204,7 +202,7 @@ export default function LeaderboardPage() {
                                         : "bg-amber-100 text-amber-600"
                                   }`}
                                 >
-                                  <Trophy className="h-4 w-4" />
+                                  <span className="font-medium">{rank}</span>
                                 </div>
                               ) : (
                                 <div className="text-gray-900 font-medium w-8 text-center">{rank}</div>

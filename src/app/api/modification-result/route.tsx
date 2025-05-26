@@ -22,7 +22,7 @@ export async function PUT(request: NextRequest) {
             lastUpdated: new Date().toISOString()
         });
 
-        if(status === true) {
+        if(status === "true") {
             const userRef = doc(db, "users", modData.userId);
             const userSnap = await getDoc(userRef);
             if (userSnap.exists()) {

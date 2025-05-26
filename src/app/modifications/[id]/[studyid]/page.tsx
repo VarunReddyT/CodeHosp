@@ -15,7 +15,7 @@ interface Modification {
   modifiedCode: string
   notes: string
   studyId: string
-  verificationStatus: 'verified' | 'pending' | 'rejected'
+  approved: string
 }
 
 export default function StudyModificationsPage() {
@@ -42,7 +42,10 @@ export default function StudyModificationsPage() {
           toast.error("Failed to load modifications: " + (response.data.message || "Unknown error"))
           return
         }
-        setModifications(response.data)
+        // Sort modifications by timestamp (newest first)
+        const sortedMods = response.data.sort((a: Modification, b: Modification) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setModifications(sortedMods)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error occurred')
       } finally {
@@ -59,9 +62,9 @@ export default function StudyModificationsPage() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'verified':
+      case 'true':
         return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'rejected':
+      case 'false':
         return <XCircle className="h-4 w-4 text-red-500" />
       default:
         return <Clock className="h-4 w-4 text-amber-500" />
@@ -72,16 +75,16 @@ export default function StudyModificationsPage() {
     try {
       const response = await axios.put(`/api/modification-result`, {
         studyId: studyid,
-        status: true
+        status: "true"
       })
       if (response.status === 200) {
         toast.success("Modification approved")
         setModifications(modifications.map(mod => 
-          mod.id === modId ? {...mod, verificationStatus: 'verified'} : mod
+          mod.id === modId ? {...mod, approved: 'true'} : mod
         ))
       }
     } catch (error) {
-        console.error("Error approving modification:", error)
+      console.error("Error approving modification:", error)
       toast.error("Failed to approve modification")
     }
   }
@@ -90,16 +93,16 @@ export default function StudyModificationsPage() {
     try {
       const response = await axios.put(`/api/modification-result`, {
         studyId: studyid,
-        status: false
+        status: "false"
       })
       if (response.status === 200) {
         toast.success("Modification rejected")
         setModifications(modifications.map(mod => 
-          mod.id === modId ? {...mod, verificationStatus: 'rejected'} : mod
+          mod.id === modId ? {...mod, approved: 'false'} : mod
         ))
       }
     } catch (error) {
-        console.error("Error rejecting modification:", error)
+      console.error("Error rejecting modification:", error)
       toast.error("Failed to reject modification")
     }
   }
@@ -166,11 +169,11 @@ export default function StudyModificationsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4 flex-1">
                       <div className={`p-3 rounded-full ${
-                        mod.verificationStatus === 'verified' ? 'bg-green-100 text-green-600' :
-                        mod.verificationStatus === 'rejected' ? 'bg-red-100 text-red-600' :
+                        mod.approved === 'true' ? 'bg-green-100 text-green-600' :
+                        mod.approved === 'false' ? 'bg-red-100 text-red-600' :
                         'bg-amber-100 text-amber-600'
                       }`}>
-                        {getStatusIcon(mod.verificationStatus)}
+                        {getStatusIcon(mod.approved)}
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -212,10 +215,12 @@ export default function StudyModificationsPage() {
 
                     <button
                       onClick={() => handleApprove(mod.id)}
-                      disabled={mod.verificationStatus === 'verified'}
+                      disabled={mod.approved === 'true' || mod.approved === 'false'}
                       className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${
-                        mod.verificationStatus === 'verified'
-                          ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                        mod.approved === 'true'
+                          ? 'bg-green-100 text-green-500 cursor-not-allowed'
+                          : mod.approved === 'false'
+                            ? 'bg-green-50 text-green-500 cursor-not-allowed'
                           : 'bg-green-50 text-green-700 hover:bg-green-100'
                       }`}
                     >
@@ -225,11 +230,13 @@ export default function StudyModificationsPage() {
 
                     <button
                       onClick={() => handleReject(mod.id)}
-                      disabled={mod.verificationStatus === 'rejected'}
+                      disabled={mod.approved === 'true' || mod.approved === 'false'}
                       className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${
-                        mod.verificationStatus === 'rejected'
-                          ? 'bg-red-100 text-red-700 cursor-not-allowed'
-                          : 'bg-red-50 text-red-700 hover:bg-red-100'
+                        mod.approved === 'false'
+                          ? 'bg-red-100 text-red-500 cursor-not-allowed'
+                          : mod.approved === 'true'
+                            ? 'bg-red-50 text-red-500 cursor-not-allowed'
+                            : 'bg-red-50 text-red-700 hover:bg-red-100'
                       }`}
                     >
                       <XCircle className="h-4 w-4" />
