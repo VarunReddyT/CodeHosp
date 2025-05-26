@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Search, TrendingUp, Calendar, Filter, Trophy, Loader2 } from "lucide-react"
+import { Search, TrendingUp, Calendar, Filter, Loader2 } from "lucide-react"
 import { getAuth } from "firebase/auth"
 import axios from "axios"
 interface LeaderboardUser {
