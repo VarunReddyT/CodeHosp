@@ -6,6 +6,7 @@ import axios from "axios"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
 import { getAuth } from "firebase/auth"
+import Cookies from "js-cookie"
 
 // type Status = "verified" | "issues" | "pending"
 
@@ -62,38 +63,56 @@ export default function UploadPage() {
 
   useEffect(() => {
     async function verifyToken() {
-      const token = await getAuth().currentUser?.getIdToken()
-
-      if (!token) {
+      const user = getAuth().currentUser
+      if (!user) {
         toast.error("Login to upload a study", {
           duration: 2000,
           position: 'top-right',
         })
-        router.push("/login");
-        return;
+        router.push("/login")
+        return
       }
-      console.log("Token:", token)
-
-      await axios.post("/api/verifytoken", { token })
-        .then((response) => {
-          const { userId, email } = response.data;
-          setFormData((prev) => ({
-            ...prev,
-            userId
-          }));
-          console.log("Email:", email);
-        })
-        .catch((error) => {
-          console.error("Token verification failed:", error);
-          toast.error("Please login and try again", {
+      try {
+        const token = await user.getIdToken()
+        const tokenResult = await user.getIdTokenResult()
+        const exp = tokenResult.expirationTime ? new Date(tokenResult.expirationTime).getTime() : 0
+        if (Date.now() > exp) {
+          await getAuth().signOut()
+          toast.error("Session expired. Please login again.", {
             duration: 2000,
             position: 'top-right',
           })
-          router.push("/login");
-        });
+          router.push("/login")
+          return
+        }
+        Cookies.set("token", token, { expires: 1, secure: true, sameSite: "strict" })
+        await axios.post("/api/verifytoken", { token })
+          .then((response) => {
+            const { userId, email } = response.data
+            setFormData((prev) => ({
+              ...prev,
+              userId
+            }))
+            console.log("Email:", email)
+          })
+          .catch((error) => {
+            console.error("Token verification failed:", error)
+            toast.error("Please login and try again", {
+              duration: 2000,
+              position: 'top-right',
+            })
+            router.push("/login")
+          })
+      } catch (err) {
+        toast.error("Please login and try again", {
+          duration: 2000,
+          position: 'top-right',
+        })
+        router.push("/login")
+      }
     }
     verifyToken()
-  }, [router]);
+  }, [router])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target
@@ -229,7 +248,7 @@ export default function UploadPage() {
       const response = await axios.post('/api/upload', uploadFormData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${await getAuth().currentUser?.getIdToken()}`
+          'Authorization': `Bearer ${Cookies.get("token")}`
         },
         validateStatus: () => true, 
       })

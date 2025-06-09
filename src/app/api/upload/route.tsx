@@ -246,7 +246,30 @@ function extractNumber(str: string): number | null {
 }
 
 export async function POST(request: NextRequest) {
-    const user = await adminAuth.verifyIdToken(request.headers.get("Authorization")?.split("Bearer ")[1] || "");
+    // Try to get token from cookies first, then from Authorization header
+    let token = "";
+    const cookieHeader = request.headers.get("cookie");
+    if (cookieHeader) {
+        const match = cookieHeader.match(/(?:^|; )token=([^;]*)/);
+        if (match) {
+            token = decodeURIComponent(match[1]);
+        }
+    }
+    if (!token) {
+        const authHeader = request.headers.get("Authorization");
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.split("Bearer ")[1];
+        }
+    }
+    if (!token) {
+        return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
+    }
+    let user;
+    try {
+        user = await adminAuth.verifyIdToken(token);
+    } catch (err) {
+        return NextResponse.json({ message: "Unauthorized: Invalid or expired token" }, { status: 401 });
+    }
     if (!user) {
         return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

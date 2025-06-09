@@ -22,7 +22,7 @@ export default function Login() {
             const token = await auth.currentUser?.getIdToken();
 
             if (token) {
-                await axios.post("/api/session", { token });
+                await axios.post("/api/session", { token }, { withCredentials: true });
             }
             router.push("/");
         } catch (error) {
@@ -48,7 +48,7 @@ export default function Login() {
             }
             const token = await auth.currentUser?.getIdToken();
             if (token) {
-                await axios.post("/api/session", { token });
+                await axios.post("/api/session", { token }, { withCredentials: true });
             }
             router.push("/");
         } catch (error) {
@@ -72,7 +72,7 @@ export default function Login() {
             });
             const token = await auth.currentUser?.getIdToken();
             if (token) {
-                await axios.post("/api/session", { token });
+                await axios.post("/api/session", { token }, { withCredentials: true });
             }
             router.push("/");
         } catch (error) {
