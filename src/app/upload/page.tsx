@@ -82,6 +82,7 @@ export default function UploadPage() {
             duration: 2000,
             position: 'top-right',
           })
+          Cookies.remove("token")
           router.push("/login")
           return
         }
@@ -101,13 +102,16 @@ export default function UploadPage() {
               duration: 2000,
               position: 'top-right',
             })
+            Cookies.remove("token")
             router.push("/login")
           })
       } catch (err) {
         toast.error("Please login and try again", {
           duration: 2000,
           position: 'top-right',
-        })
+        });
+        console.error("Error getting token:", err)
+        Cookies.remove("token")
         router.push("/login")
       }
     }

@@ -268,7 +268,7 @@ export async function POST(request: NextRequest) {
     try {
         user = await adminAuth.verifyIdToken(token);
     } catch (err) {
-        return NextResponse.json({ message: "Unauthorized: Invalid or expired token" }, { status: 401 });
+        return NextResponse.json({ message: `Unauthorized: Invalid or expired token : ${err}`}, { status: 401 });
     }
     if (!user) {
         return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

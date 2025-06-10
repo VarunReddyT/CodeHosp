@@ -5,6 +5,7 @@ import { Menu, X, Search, Mail } from "lucide-react"
 import { auth } from "@lib/firebase"
 import { signOut, onAuthStateChanged } from "firebase/auth"
 import { useRouter } from "next/navigation"
+import Cookies from "js-cookie"
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -58,6 +59,7 @@ export default function Navbar() {
       await signOut(auth)
       setIsLoggedIn(false)
       setUser(null)
+      Cookies.remove("token");
       router.push("/")
     } catch (err) {
       alert("Logout failed: " + err.message)
