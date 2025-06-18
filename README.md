@@ -59,7 +59,7 @@ CodeHosp is a collaborative platform that brings transparency and reproducibilit
 ## Technology Stack
 
 - **Frontend & Backend**: NextJS
-- **Database**: FireStore + Supabase
+- **Database**: Firebase + Supabase
 
 **Make medical research transparent, reproducible, and collaborative.**  
 Join us in building the future of credible science.
