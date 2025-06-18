@@ -32,6 +32,7 @@ interface Study {
   methodology: string
   dataFile?: File | null
   codeFile?: File | null
+  readmeFile? : File | null
 }
 
 export default function UploadPage() {
@@ -48,7 +49,8 @@ export default function UploadPage() {
     expectedOutput: '',
     methodology: '',
     dataFile: null,
-    codeFile: null
+    codeFile: null,
+    readmeFile: null,
   })
   const [currentTag, setCurrentTag] = useState('')
   const [currentAuthor, setCurrentAuthor] = useState('')
@@ -60,6 +62,7 @@ export default function UploadPage() {
 
   const [file, setFile] = useState<File | null>(null)
   const [code, setCode] = useState<File | null>(null)
+  const [readme, setReadme] = useState<File | null>(null)
 
   useEffect(() => {
     async function verifyToken() {
@@ -150,6 +153,13 @@ export default function UploadPage() {
     }
   }
 
+  const handleReadmeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const readmeInput = e.target.files?.[0]
+    if (readmeInput) {
+      setReadme(readmeInput)
+    }
+  }
+
   const handleRemoveAuthor = (index: number) => {
     setFormData(prev => ({
       ...prev,
@@ -187,7 +197,7 @@ export default function UploadPage() {
 
   const validateDataCode = () => {
 
-    return file !== null && code !== null && formData.expectedOutput.trim()
+    return file !== null && code !== null && formData.expectedOutput.trim() && readme !== null
   }
 
   const validateMethodology = () => {
@@ -247,6 +257,9 @@ export default function UploadPage() {
       }
       if (code) {
         uploadFormData.append('codeFile', code)
+      }
+      if (readme) {
+        uploadFormData.append('readmeFile', readme)
       }
 
       const response = await axios.post('/api/upload', uploadFormData, {
@@ -615,6 +628,29 @@ export default function UploadPage() {
                     ></textarea>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Readme File*
+                    </label>
+                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                      <div className="space-y-1 text-center">
+                        <div className="flex text-sm text-gray-600">
+                          <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
+                            <span>Upload a file</span>
+                            <input type="file" className="sr-only" required onChange={handleReadmeChange} />
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-gray-500">Markdown or text file with study details</p>
+                        {readme && (
+                          <p className="text-sm text-gray-900 mt-2">
+                            Selected: {readme.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex justify-between border-t p-6">
                     <button
                       type="button"
@@ -749,6 +785,10 @@ export default function UploadPage() {
                       <div>
                         <p className="text-sm text-gray-500">Analysis Code</p>
                         <p className="font-medium">{code ? code.name : 'Not uploaded'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Readme File</p>
+                        <p className="font-medium">{readme ? readme.name : 'Not uploaded'}</p>
                       </div>
                     </div>
                   </div>

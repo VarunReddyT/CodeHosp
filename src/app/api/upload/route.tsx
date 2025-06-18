@@ -292,6 +292,7 @@ export async function POST(request: NextRequest) {
 
         const dataFile = formData.get('dataFile') as File;
         const codeFile = formData.get('codeFile') as File;
+        const readmeFile = formData.get('readmeFile') as File;
 
         if (!dataFile || !codeFile) {
             throw new Error("Data file and code file are required");
@@ -311,6 +312,14 @@ export async function POST(request: NextRequest) {
         if (codeFile.size > MAX_PY_SIZE) {
             throw new Error("Code file too large (max 1MB)");
         }
+        
+        if(readmeFile && readmeFile.type !== 'text/markdown' && !readmeFile.name.endsWith('.md')) {
+            throw new Error("Readme file must be a Markdown file");
+        }
+
+        if(readmeFile && readmeFile.size > 5 * 1024 * 1024) {
+            throw new Error("Readme file too large (max 5MB)");
+        }
 
         const dataContent = await dataFile.text();
         const codeContent = await codeFile.text();
@@ -323,6 +332,7 @@ export async function POST(request: NextRequest) {
         
         const dataFileUrl = await uploadFileToSupabase(dataFile, "studies");
         const codeFileUrl = await uploadFileToSupabase(codeFile, "codes");
+        const readmeFileUrl = readmeFile ? await uploadFileToSupabase(readmeFile, "readmes") : null;
 
 
         if (verificationResult.status === "error") {
@@ -347,6 +357,7 @@ export async function POST(request: NextRequest) {
             abstract,
             dataFile: dataFileUrl,
             codeFile: codeFileUrl,
+            readmeFile: readmeFileUrl,
             expectedOutput,
             methodology,
             createdAt: new Date().toISOString(),

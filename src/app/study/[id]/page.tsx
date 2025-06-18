@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { useParams } from "next/navigation"
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from "remark-gfm"
 import {
   CheckCircle,
   AlertCircle,
@@ -41,6 +43,7 @@ interface Study {
   abstract: string
   dataFile: string
   codeFile: string
+  readmeFile: string | null
   methodology: string
   createdAt: string
   updatedAt: string
@@ -113,6 +116,8 @@ export default function StudyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
+  const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  const [loadingReadme, setLoadingReadme] = useState(false)
 
   useEffect(() => {
     const fetchStudy = async () => {
@@ -120,6 +125,12 @@ export default function StudyPage() {
         setLoading(true)
         const response = await axios.get(`/api/study?id=${id}`)
         setStudy(response.data.study)
+        if(response.data.study.readmeFile) {
+          setLoadingReadme(true)
+          const readmeResponse = await axios.get(response.data.study.readmeFile)
+          setReadmeContent(readmeResponse.data)
+          setLoadingReadme(false)
+        }
       } catch (err) {
         setError("Failed to fetch study data")
         console.error(err)
@@ -217,11 +228,10 @@ export default function StudyPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeTab === tab.id
+                  className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
                       ? "border-teal-500 text-teal-600"
                       : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
+                    }`}
                 >
                   {tab.name}
                 </button>
@@ -319,6 +329,30 @@ export default function StudyPage() {
                         Download
                       </a>
                     </div>
+                    
+                    {study.readmeFile && (
+                      <div className="p-4 border rounded-lg">
+                        <h4 className="font-medium mb-2">README File</h4>
+                        {loadingReadme ? (
+                          <p>Loading README content...</p>
+                        ) : readmeContent ? (
+                          <div className="prose max-w-none">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {readmeContent}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <a 
+                            href={study.readmeFile} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-teal-600 hover:underline"
+                          >
+                            View README File
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -328,7 +362,7 @@ export default function StudyPage() {
               <div className="rounded-lg border bg-white shadow-sm">
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-4">Verification Results</h3>
-                  
+
                   {study.verification ? (
                     <div className={`p-4 rounded-lg border ${verificationStatusConfig[study.verification.status].color}`}>
                       <div className="flex items-center gap-2">
