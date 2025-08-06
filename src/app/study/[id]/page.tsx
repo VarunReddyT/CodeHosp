@@ -124,10 +124,14 @@ export default function StudyPage() {
       try {
         setLoading(true)
         const response = await axios.get(`/api/study?id=${id}`)
-        setStudy(response.data.study)
-        if(response.data.study.readmeFile) {
+        // Handle the new API response structure
+        const responseData = response.data.data || response.data
+        const studyData = responseData.study || responseData
+        
+        setStudy(studyData)
+        if(studyData.readmeFile) {
           setLoadingReadme(true)
-          const readmeResponse = await axios.get(response.data.study.readmeFile)
+          const readmeResponse = await axios.get(studyData.readmeFile)
           setReadmeContent(readmeResponse.data)
           setLoadingReadme(false)
         }

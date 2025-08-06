@@ -42,8 +42,12 @@ export default function StudyModificationsPage() {
           toast.error("Failed to load modifications: " + (response.data.message || "Unknown error"))
           return
         }
+        // Handle the new API response structure
+        const responseData = response.data.data || response.data
+        const modificationsArray = Array.isArray(responseData) ? responseData : []
+        
         // Sort modifications by timestamp (newest first)
-        const sortedMods = response.data.sort((a: Modification, b: Modification) => 
+        const sortedMods = modificationsArray.sort((a: Modification, b: Modification) => 
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setModifications(sortedMods)
       } catch (err) {

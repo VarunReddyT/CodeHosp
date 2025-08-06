@@ -58,7 +58,11 @@ export default function DashboardPage() {
         return
       }
       
-      setStudies(response.data)
+      // Handle the new API response structure
+      const responseData = response.data.data || response.data
+      const studiesArray = responseData.studies || responseData || []
+      
+      setStudies(Array.isArray(studiesArray) ? studiesArray : [])
       setError(null)
     } catch (err) {
       console.error("Error fetching studies:", err)
@@ -69,6 +73,11 @@ export default function DashboardPage() {
   }
 
   const filterAndSortStudies = () => {
+    if (!Array.isArray(studies)) {
+      setFilteredStudies([])
+      return
+    }
+    
     let result = [...studies]
     
     // Search filter

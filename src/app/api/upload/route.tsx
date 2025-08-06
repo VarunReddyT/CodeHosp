@@ -1,13 +1,15 @@
 import { NextResponse, NextRequest } from "next/server";
+import { validateToken } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { handleApiError } from "@/lib/errorHandler";
+import { validateFile, FILE_TYPES } from "@/lib/fileValidation";
+import { config } from "@/lib/config";
+import { rateLimit } from "@/lib/rateLimit";
+import { clearCache } from "@/lib/cache";
 import { db } from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabase";
-import { adminAuth } from "@/lib/firebaseAdmin";
 import axios from "axios";
 
-const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
-const COMPARATOR_API_URL = "https://varunreddy24-comparator.hf.space/compare";
-const MAX_CSV_SIZE = 5 * 1024 * 1024;
-const MAX_PY_SIZE = 1 * 1024 * 1024;
 const DANGEROUS_KEYWORDS = [
     'os.system', 'subprocess', 'eval', 'exec', 'open(',
     'import socket', 'import os', 'import subprocess',
@@ -52,7 +54,7 @@ async function executeWithPiston(codeContent: string, dataContent: string): Prom
             .replace(/pd\.read_csv\(['"].*?['"]\)/g, `pd.read_csv("data.csv")`)
             .replace(/pd\.read_csv\(StringIO\(.*?\)\)/g, `pd.read_csv("data.csv")`);
 
-        const response = await axios.post(PISTON_API_URL, {
+        const response = await axios.post(config.apis.piston, {
             language: 'python',
             version: '3.10.0',
             files: [
@@ -96,7 +98,7 @@ async function executeWithPiston(codeContent: string, dataContent: string): Prom
 
 async function compareOutputsAPI(output: string, expectedOutput: string) {
     try {
-        const response = await axios.post(COMPARATOR_API_URL, {
+        const response = await axios.post(config.apis.comparator, {
             expected: expectedOutput,
             actual: output
         });
@@ -246,37 +248,24 @@ function extractNumber(str: string): number | null {
 }
 
 export async function POST(request: NextRequest) {
-    // Try to get token from cookies first, then from Authorization header
-    let token = "";
-    const cookieHeader = request.headers.get("cookie");
-    if (cookieHeader) {
-        const match = cookieHeader.match(/(?:^|; )token=([^;]*)/);
-        if (match) {
-            token = decodeURIComponent(match[1]);
-        }
+    // Rate limiting  
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const rateLimitResult = rateLimit(ip, 10, 60 * 1000); // 10 requests per minute
+    
+    if (!rateLimitResult.allowed) {
+        return errorResponse("Rate limit exceeded", 429);
     }
-    if (!token) {
-        const authHeader = request.headers.get("Authorization");
-        if (authHeader && authHeader.startsWith("Bearer ")) {
-            token = authHeader.split("Bearer ")[1];
-        }
+
+    // Use centralized auth validation
+    const { user, error } = await validateToken(request);
+    if (error) {
+        return errorResponse(error, 401);
     }
-    if (!token) {
-        return NextResponse.json({ message: "Unauthorized: No token provided" }, { status: 401 });
-    }
-    let user;
-    try {
-        user = await adminAuth.verifyIdToken(token);
-    } catch (err) {
-        return NextResponse.json({ message: `Unauthorized: Invalid or expired token : ${err}`}, { status: 401 });
-    }
-    if (!user) {
-        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-    const userId = user.uid;
+    
     try {
         const formData = await request.formData();
         
+        // Extract form data
         const title = formData.get('title') as string;
         const authors = formData.getAll('authors[]') as string[];
         const institution = formData.get('institution') as string;
@@ -290,35 +279,31 @@ export async function POST(request: NextRequest) {
         const methodology = formData.get('methodology') as string;
         const expectedOutput = formData.get('expectedOutput') as string;
 
+        // Extract and validate files
         const dataFile = formData.get('dataFile') as File;
         const codeFile = formData.get('codeFile') as File;
         const readmeFile = formData.get('readmeFile') as File;
 
         if (!dataFile || !codeFile) {
-            throw new Error("Data file and code file are required");
-        }
-        if (dataFile.type !== 'text/csv' && !dataFile.name.endsWith('.csv')) {
-            throw new Error("Data file must be a CSV file");
+            return errorResponse("Data file and code file are required", 400);
         }
 
-        if (codeFile.type !== 'text/x-python' && !codeFile.name.endsWith('.py')) {
-            throw new Error("Code file must be a Python file");
-        }
-
-        if (dataFile.size > MAX_CSV_SIZE) {
-            throw new Error("Data file too large (max 5MB)");
-        }
-
-        if (codeFile.size > MAX_PY_SIZE) {
-            throw new Error("Code file too large (max 1MB)");
+        // Validate files using utility
+        const dataValidation = validateFile(dataFile, FILE_TYPES.CSV, config.limits.maxCsvSize);
+        if (!dataValidation.valid) {
+            return errorResponse(dataValidation.error!, 400);
         }
         
-        if(readmeFile && readmeFile.type !== 'text/markdown' && !readmeFile.name.endsWith('.md')) {
-            throw new Error("Readme file must be a Markdown file");
+        const codeValidation = validateFile(codeFile, FILE_TYPES.PYTHON, config.limits.maxPySize);
+        if (!codeValidation.valid) {
+            return errorResponse(codeValidation.error!, 400);
         }
-
-        if(readmeFile && readmeFile.size > 5 * 1024 * 1024) {
-            throw new Error("Readme file too large (max 5MB)");
+        
+        if (readmeFile) {
+            const readmeValidation = validateFile(readmeFile, FILE_TYPES.MARKDOWN, config.limits.maxReadmeSize);
+            if (!readmeValidation.valid) {
+                return errorResponse(readmeValidation.error!, 400);
+            }
         }
 
         const dataContent = await dataFile.text();
@@ -364,7 +349,7 @@ export async function POST(request: NextRequest) {
             updatedAt: new Date().toISOString(),
             verification: verificationResult,
             verifications : 1,
-            userId: userId,
+            userId: user.uid,
         });
 
         let additionalPoints = 0;
@@ -374,7 +359,7 @@ export async function POST(request: NextRequest) {
         else if(verificationResult.status === "partial") {
             additionalPoints = 40;
         }
-        const userRef = db.collection("users").doc(userId);
+        const userRef = db.collection("users").doc(user.uid);
         const userDoc = await userRef.get();
         if (userDoc.exists) {
             const userData = userDoc.data();
@@ -387,19 +372,22 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        return NextResponse.json({
-            message: "Study published successfully",
+        // Clear caches
+        clearCache('studies');
+        clearCache('leaderboard');
+
+        return successResponse({
+            id: response.id,
             status: status,
             verification: verificationResult,
             dataFileUrl,
             codeFileUrl,
+            readmeFileUrl,
             studyId: response.id
-        }, { status: 200 });
+        }, "Study published successfully");
     }
     catch (error) {
-        console.error("Error publishing study:", error);
-        return NextResponse.json({
-            message: error instanceof Error ? error.message : "Internal Server Error"
-        }, { status: 500 });
+        const { status, message } = handleApiError(error);
+        return errorResponse(message, status);
     }
 }
