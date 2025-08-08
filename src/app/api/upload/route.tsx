@@ -344,6 +344,9 @@ export async function POST(request: NextRequest) {
                 verificationResult.status === "partial" ? "partial" : "issues";
         }
 
+        if (!user) {
+            return errorResponse("User not found", 401);
+        }
         const response = await db.collection("studies").add({
             title,
             authors,

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
+import { DecodedIdToken } from "firebase-admin/auth";
 
-export async function validateToken(request: NextRequest): Promise<{user: any, error?: string}> {
+export async function validateToken(request: NextRequest): Promise<{user: DecodedIdToken | null, error?: string}> {
     let token = "";
 
     const cookieHeader = request.headers.get("cookie");
@@ -24,7 +25,7 @@ export async function validateToken(request: NextRequest): Promise<{user: any, e
     try {
         const user = await adminAuth.verifyIdToken(token);
         return { user };
-    } catch (err) {
+    } catch {
         return { user: null, error: "Invalid or expired token" };
     }
 }

@@ -131,7 +131,7 @@ async function executeWithPiston(codeContent: string, csvContent: string): Promi
         };
     } catch (error) {
         console.error("Piston API error:", error);
-        if (error instanceof Error && (error as any).code === 'ECONNABORTED') {
+        if (error instanceof Error && 'code' in error && (error as { code: string }).code === 'ECONNABORTED') {
             throw new Error("Code execution timed out. Please optimize your code for better performance.");
         }
         // Fallback for simple statistical operations
@@ -139,7 +139,7 @@ async function executeWithPiston(codeContent: string, csvContent: string): Promi
     }
 }
 
-async function fallbackExecution(codeContent: string, csvContent: string): Promise<{ stdout: string; stderr: string }> {
+async function fallbackExecution(codeContent: string, _csvContent: string): Promise<{ stdout: string; stderr: string }> {
     try {
         // Simple fallback for basic statistical operations
         if (codeContent.includes('mean()') || codeContent.includes('std()') || codeContent.includes('describe()')) {
@@ -150,7 +150,7 @@ async function fallbackExecution(codeContent: string, csvContent: string): Promi
         }
         
         throw new Error("Failed to execute code with Piston API");
-    } catch (error) {
+    } catch {
         return {
             stdout: "",
             stderr: "Service temporarily unavailable. Please try again later or contact support."

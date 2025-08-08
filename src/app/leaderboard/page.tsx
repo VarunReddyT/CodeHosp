@@ -24,12 +24,10 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
     const auth = getAuth()
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthenticated(!!user)
+    const unsubscribe = onAuthStateChanged(auth, () => {
       fetchLeaderboard() // Refresh leaderboard when auth state changes
     })
 
@@ -55,7 +53,7 @@ export default function LeaderboardPage() {
             'Authorization': `Bearer ${token}`,
             'Cookie': `token=${Cookies.get('token') || token}`
           }
-        } catch (authError) {
+        } catch {
           console.log("Auth token not available, fetching public leaderboard")
         }
       }

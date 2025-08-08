@@ -28,16 +28,24 @@ export async function GET(request: NextRequest) {
         if (snapshot.empty) {
             return successResponse({ studies: [], total: 0, hasMore: false });
         }
+
+        interface Study {
+            id: string;
+            title?: string;
+            authors?: string[];
+            institution?: string;
+            [key: string]: unknown;
+        }
         
         let studies = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        })) as any[];
+        })) as Study[];
         
         // Client-side search if search term provided
         if (search) {
             const searchLower = search.toLowerCase();
-            studies = studies.filter((study: any) => 
+            studies = studies.filter((study: Study) => 
                 study.title?.toLowerCase().includes(searchLower) ||
                 study.authors?.some((author: string) => author.toLowerCase().includes(searchLower)) ||
                 study.institution?.toLowerCase().includes(searchLower)
