@@ -3,8 +3,7 @@ import { adminAuth } from "@/lib/firebaseAdmin";
 
 export async function validateToken(request: NextRequest): Promise<{user: any, error?: string}> {
     let token = "";
-    
-    // Check cookies first, then Authorization header
+
     const cookieHeader = request.headers.get("cookie");
     if (cookieHeader) {
         const match = cookieHeader.match(/(?:^|; )token=([^;]*)/);

@@ -4,8 +4,6 @@ import { successResponse, errorResponse } from "@/lib/apiResponse";
 import { handleApiError } from "@/lib/errorHandler";
 import { validateFile, FILE_TYPES } from "@/lib/fileValidation";
 import { config } from "@/lib/config";
-import { rateLimit } from "@/lib/rateLimit";
-import { clearCache } from "@/lib/cache";
 import { db } from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabase";
 import axios from "axios";
@@ -248,14 +246,6 @@ function extractNumber(str: string): number | null {
 }
 
 export async function POST(request: NextRequest) {
-    // Rate limiting  
-    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-    const rateLimitResult = rateLimit(ip, 10, 60 * 1000); // 10 requests per minute
-    
-    if (!rateLimitResult.allowed) {
-        return errorResponse("Rate limit exceeded", 429);
-    }
-
     // Use centralized auth validation
     const { user, error } = await validateToken(request);
     if (error) {
@@ -277,6 +267,7 @@ export async function POST(request: NextRequest) {
         const tags = formData.getAll('tags[]') as string[];
         const abstract = formData.get('abstract') as string;
         const methodology = formData.get('methodology') as string;
+        const studyType = formData.get('studyType') as string; // 'data-only' or 'research'
         const expectedOutput = formData.get('expectedOutput') as string;
 
         // Extract and validate files
@@ -284,49 +275,74 @@ export async function POST(request: NextRequest) {
         const codeFile = formData.get('codeFile') as File;
         const readmeFile = formData.get('readmeFile') as File;
 
-        if (!dataFile || !codeFile) {
-            return errorResponse("Data file and code file are required", 400);
+        // Validate required fields based on study type
+        if (!dataFile) {
+            return errorResponse("Data file is required for all studies", 400);
+        }
+
+        if (!studyType || !['data-only', 'research'].includes(studyType)) {
+            return errorResponse("Study type must be 'data-only' or 'research'", 400);
+        }
+
+        if (studyType === 'research' && !codeFile) {
+            return errorResponse("Code file is required for research studies", 400);
+        }
+
+        if (studyType === 'research' && !expectedOutput) {
+            return errorResponse("Expected output is required for research studies", 400);
         }
 
         // Validate files using utility
-        const dataValidation = validateFile(dataFile, FILE_TYPES.CSV, config.limits.maxCsvSize);
+        const dataValidation = validateFile(dataFile, FILE_TYPES.SPREADSHEET, config.limits.maxDataFileSize);
         if (!dataValidation.valid) {
             return errorResponse(dataValidation.error!, 400);
         }
-        
-        const codeValidation = validateFile(codeFile, FILE_TYPES.PYTHON, config.limits.maxPySize);
-        if (!codeValidation.valid) {
-            return errorResponse(codeValidation.error!, 400);
+        // Validate code file only for research studies
+        if (studyType === 'research' && codeFile) {
+            const codeValidation = validateFile(codeFile, FILE_TYPES.PYTHON, config.limits.maxPySize);
+            if (!codeValidation.valid) {
+                return errorResponse(codeValidation.error!, 400);
+            }
         }
         
         if (readmeFile) {
-            const readmeValidation = validateFile(readmeFile, FILE_TYPES.MARKDOWN, config.limits.maxReadmeSize);
+            const readmeValidation = validateFile(readmeFile, [...FILE_TYPES.MARKDOWN, "application/octet-stream"], config.limits.maxReadmeSize);
             if (!readmeValidation.valid) {
                 return errorResponse(readmeValidation.error!, 400);
             }
         }
 
+        // Get data content for all spreadsheet files
         const dataContent = await dataFile.text();
-        const codeContent = await codeFile.text();
+        
+        let codeContent = null;
+        let verificationResult = null;
 
-        const verificationResult = await verifyStudy(
-            codeContent,
-            dataContent,
-            expectedOutput,
-        );
+        // Only process code and verification for research studies
+        if (studyType === 'research' && codeFile) {
+            codeContent = await codeFile.text();
+            verificationResult = await verifyStudy(
+                codeContent,
+                dataContent,
+                expectedOutput,
+            );
+            
+            if (verificationResult.status === "error") {
+                return NextResponse.json({ message: verificationResult.details }, { status: 400 });
+            }
+        }
         
         const dataFileUrl = await uploadFileToSupabase(dataFile, "studies");
-        const codeFileUrl = await uploadFileToSupabase(codeFile, "codes");
+        const codeFileUrl = (studyType === 'research' && codeFile) ? await uploadFileToSupabase(codeFile, "codes") : null;
         const readmeFileUrl = readmeFile ? await uploadFileToSupabase(readmeFile, "readmes") : null;
 
-
-        if (verificationResult.status === "error") {
-            return NextResponse.json({ message: verificationResult.details }, { status: 400 });
+        // Determine status based on study type and verification
+        let status = "published"; // Default for data-only studies
+        if (studyType === 'research' && verificationResult) {
+            status = verificationResult.status === "match" ||
+                verificationResult.status === "close" ? "verified" :
+                verificationResult.status === "partial" ? "partial" : "issues";
         }
-
-        const status = verificationResult.status === "match" ||
-            verificationResult.status === "close" ? "verified" :
-            verificationResult.status === "partial" ? "partial" : "issues";
 
         const response = await db.collection("studies").add({
             title,
@@ -340,25 +356,31 @@ export async function POST(request: NextRequest) {
             issues,
             tags,
             abstract,
+            studyType, // Add the new field
             dataFile: dataFileUrl,
             codeFile: codeFileUrl,
             readmeFile: readmeFileUrl,
-            expectedOutput,
+            expectedOutput: studyType === 'research' ? expectedOutput : null,
             methodology,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            verification: verificationResult,
-            verifications : 1,
+            verification: studyType === 'research' ? verificationResult : null,
+            verifications: studyType === 'research' ? 1 : 0,
             userId: user.uid,
         });
 
+        // Calculate points based on study type and verification
         let additionalPoints = 0;
-        if(verificationResult.status === "match" || verificationResult.status === "close") {
-            additionalPoints = 100;
+        if (studyType === 'research' && verificationResult) {
+            if (verificationResult.status === "match" || verificationResult.status === "close") {
+                additionalPoints = 100;
+            } else if (verificationResult.status === "partial") {
+                additionalPoints = 40;
+            }
+        } else if (studyType === 'data-only') {
+            additionalPoints = 25; // Points for data sharing
         }
-        else if(verificationResult.status === "partial") {
-            additionalPoints = 40;
-        }
+
         const userRef = db.collection("users").doc(user.uid);
         const userDoc = await userRef.get();
         if (userDoc.exists) {
@@ -372,14 +394,11 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        // Clear caches
-        clearCache('studies');
-        clearCache('leaderboard');
-
         return successResponse({
             id: response.id,
             status: status,
-            verification: verificationResult,
+            studyType: studyType,
+            verification: studyType === 'research' ? verificationResult : null,
             dataFileUrl,
             codeFileUrl,
             readmeFileUrl,

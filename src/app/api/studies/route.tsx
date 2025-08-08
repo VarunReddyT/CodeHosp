@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
-import { getCache, setCache } from "@/lib/cache";
 import { db } from "@/lib/firebaseAdmin";
 
 export async function GET(request: NextRequest) {
@@ -11,14 +10,6 @@ export async function GET(request: NextRequest) {
         const category = searchParams.get("category");
         const status = searchParams.get("status");
         const search = searchParams.get("search");
-        
-        // Create cache key based on query params
-        const cacheKey = `studies:${limit}:${offset}:${category}:${status}:${search}`;
-        const cached = getCache(cacheKey);
-        
-        if (cached) {
-            return successResponse(cached);
-        }
         
         let query = db.collection("studies")
             .orderBy("createdAt", "desc")
@@ -53,15 +44,9 @@ export async function GET(request: NextRequest) {
             );
         }
         
-        // Get total count for pagination (cached separately)
-        const totalCacheKey = `studies:total:${category}:${status}`;
-        let total = getCache(totalCacheKey);
-        
-        if (!total) {
-            const totalSnapshot = await db.collection("studies").count().get();
-            total = totalSnapshot.data().count;
-            setCache(totalCacheKey, total, 10); // Cache total for 10 minutes
-        }
+        // Get total count for pagination
+        const totalSnapshot = await db.collection("studies").count().get();
+        const total = totalSnapshot.data().count;
         
         const result = {
             studies,
@@ -73,9 +58,6 @@ export async function GET(request: NextRequest) {
                 total
             }
         };
-        
-        // Cache for 2 minutes
-        setCache(cacheKey, result, 2);
         
         return successResponse(result);
         

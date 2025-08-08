@@ -35,6 +35,7 @@ interface Study {
   date: string
   category: string
   status: Status
+  studyType: 'data-only' | 'research'
   participants: number
   reproductions: number
   issues: string[]
@@ -72,6 +73,11 @@ const statusConfig = {
     text: "Pending Verification",
     color: "bg-amber-100 text-amber-800 border-amber-200",
   },
+  published: {
+    icon: <CheckCircle className="h-4 w-4" />,
+    text: "Published",
+    color: "bg-gray-100 text-gray-800 border-gray-200",
+  },
 }
 
 const verificationStatusConfig = {
@@ -105,7 +111,7 @@ const verificationStatusConfig = {
 const tabs = [
   { id: "overview", name: "Overview" },
   { id: "data-code", name: "Data & Code" },
-  { id: "verifications", name: "Verifications" },
+  { id: "verifications", name: "Verifications", requiresResearch: true },
   { id: "discussion", name: "Discussion" },
 ]
 
@@ -213,13 +219,15 @@ export default function StudyPage() {
             <Share2 className="h-4 w-4 mr-2" />
             Share
           </button>
-          <Link
-            href={`/study/${id}/run`}
-            className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Run Verification
-          </Link>
+          {study.studyType === 'research' && (
+            <Link
+              href={`/study/${id}/run`}
+              className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Run Verification
+            </Link>
+          )}
         </div>
       </div>
 
@@ -228,7 +236,9 @@ export default function StudyPage() {
         <div className="flex-1">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
-              {tabs.map((tab) => (
+              {tabs
+                .filter(tab => !tab.requiresResearch || study.studyType === 'research')
+                .map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -296,7 +306,9 @@ export default function StudyPage() {
             {activeTab === "data-code" && (
               <div className="rounded-lg border bg-white shadow-sm">
                 <div className="p-6">
-                  <h3 className="text-lg font-medium mb-4">Data & Code Files</h3>
+                  <h3 className="text-lg font-medium mb-4">
+                    {study.studyType === 'data-only' ? 'Dataset' : 'Data & Code Files'}
+                  </h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
@@ -316,23 +328,25 @@ export default function StudyPage() {
                       </a>
                     </div>
 
-                    <div className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileCode className="h-5 w-5 text-teal-600" />
-                        <div>
-                          <h4 className="font-medium">Code Files</h4>
-                          <p className="text-sm text-gray-500">All analysis scripts and code used</p>
+                    {study.studyType === 'research' && study.codeFile && (
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FileCode className="h-5 w-5 text-teal-600" />
+                          <div>
+                            <h4 className="font-medium">Code Files</h4>
+                            <p className="text-sm text-gray-500">All analysis scripts and code used</p>
+                          </div>
                         </div>
+                        <a
+                          href={study.codeFile}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-gray-100"
+                        >
+                          Download
+                        </a>
                       </div>
-                      <a
-                        href={study.codeFile}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-gray-100"
-                      >
-                        Download
-                      </a>
-                    </div>
+                    )}
                     
                     {study.readmeFile && (
                       <div className="p-4 border rounded-lg">

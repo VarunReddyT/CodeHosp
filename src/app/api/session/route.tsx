@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/firebaseAdmin";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
 import { handleApiError } from "@/lib/errorHandler";

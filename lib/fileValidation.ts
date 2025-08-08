@@ -6,7 +6,7 @@ export function validateFile(file: File, allowedTypes: string[], maxSize: number
     const isValidType = allowedTypes.some(type => 
         file.type === type || file.name.toLowerCase().endsWith(type.split('/')[1])
     );
-    
+    console.log(file.type, allowedTypes, isValidType);
     if (!isValidType) {
         return { valid: false, error: `Invalid file type. Allowed: ${allowedTypes.join(', ')}` };
     }
@@ -15,7 +15,16 @@ export function validateFile(file: File, allowedTypes: string[], maxSize: number
 }
 
 export const FILE_TYPES = {
-    CSV: ['text/csv', 'application/csv'],
+    SPREADSHEET: [
+        'text/csv', 
+        'application/csv',
+        'application/vnd.ms-excel', // .xls
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel.sheet.macroEnabled.12', // .xlsm
+        'application/vnd.ms-excel.template.macroEnabled.12', // .xltm
+        'application/vnd.ms-excel.addin.macroEnabled.12', // .xlam
+        'application/vnd.ms-excel.sheet.binary.macroEnabled.12' // .xlsb
+    ],
     PYTHON: ['text/x-python', 'text/plain'],
     MARKDOWN: ['text/markdown', 'text/plain'],
     TEXT: ['text/plain']

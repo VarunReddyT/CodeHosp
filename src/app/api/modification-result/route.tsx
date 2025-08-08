@@ -2,11 +2,13 @@ import { NextRequest } from "next/server";
 import { validateToken } from "@/lib/auth";
 import { successResponse, errorResponse } from "@/lib/apiResponse";
 import { handleApiError } from "@/lib/errorHandler";
-import { clearCache } from "@/lib/cache";
 import { db } from "@/lib/firebaseAdmin";
 
 export async function PUT(request: NextRequest) {
     const { user, error } = await validateToken(request);
+    if (!user) {
+        return errorResponse("Unauthorized", 401);
+    }
     if (error) {
         return errorResponse(error, 401);
     }
@@ -48,10 +50,6 @@ export async function PUT(request: NextRequest) {
                 }
             }
         }
-        
-        // Clear caches
-        clearCache('modifications');
-        clearCache('leaderboard');
         
         return successResponse(
             { modificationId: modDoc.id, status }, 

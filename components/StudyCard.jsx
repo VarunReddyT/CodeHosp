@@ -24,6 +24,11 @@ export default function StudyCard({ study }) {
       text: "Partially Verified",
       color: "bg-blue-100 text-blue-800 border-blue-200",
     },
+    published: {
+      icon: <CheckCircle className="h-4 w-4" />,
+      text: "Published",
+      color: "bg-gray-100 text-gray-800 border-gray-200",
+    },
   }
 
   const status = statusConfig[study.status]
