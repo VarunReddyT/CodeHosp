@@ -28,6 +28,7 @@ interface Study {
   tags: string[]
   description: string
   abstract: string
+  studyType: 'data-only' | 'research'
   expectedOutput: string
   methodology: string
   dataFile?: File | null
@@ -46,6 +47,7 @@ export default function UploadPage() {
     tags: [],
     description: '',
     abstract: '',
+    studyType: 'data-only',
     expectedOutput: '',
     methodology: '',
     dataFile: null,
@@ -191,13 +193,22 @@ export default function UploadPage() {
       formData.institution.trim() &&
       formData.date.trim() &&
       formData.category.trim() &&
-      formData.abstract.trim()
+      formData.abstract.trim() &&
+      formData.studyType
     )
   }
 
   const validateDataCode = () => {
-
-    return file !== null && code !== null && formData.expectedOutput.trim() && readme !== null
+    // Data file is always required
+    if (!file) return false;
+    
+    // For research studies, code and expected output are required
+    if (formData.studyType === 'research') {
+      return code !== null && formData.expectedOutput.trim();
+    }
+    
+    // For data-only studies, only data file is required
+    return true;
   }
 
   const validateMethodology = () => {
@@ -246,6 +257,7 @@ export default function UploadPage() {
       uploadFormData.append('institution', formData.institution)
       uploadFormData.append('date', formData.date)
       uploadFormData.append('category', formData.category)
+      uploadFormData.append('studyType', formData.studyType)
       uploadFormData.append('methodology', formData.description)
       uploadFormData.append('abstract', formData.abstract)
       uploadFormData.append('expectedOutput', formData.expectedOutput)
@@ -336,7 +348,7 @@ export default function UploadPage() {
                       }`}
                     disabled={!validateBasicInfo()}
                   >
-                    Data & Code
+                    {formData.studyType === 'data-only' ? 'Dataset' : 'Data & Code'}
                   </button>
                   <button
                     type="button"
@@ -456,6 +468,28 @@ export default function UploadPage() {
                       />
                     </div>
 
+                    <div className="space-y-2">
+                      <label htmlFor="studyType" className="block text-sm font-medium text-gray-700">
+                        Study Type*
+                      </label>
+                      <select
+                        id="studyType"
+                        value={formData.studyType}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full h-10 rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent px-3"
+                      >
+                        <option value="data-only">Data Sharing - Share dataset with the community</option>
+                        <option value="research">Research Study - Share dataset with analysis code</option>
+                      </select>
+                      <p className="text-sm text-gray-500">
+                        {formData.studyType === 'data-only' 
+                          ? 'Choose this if you want to share your dataset with the research community without code analysis.'
+                          : 'Choose this if you want to share your research findings with both dataset and analysis code for verification.'
+                        }
+                      </p>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label htmlFor="date" className="block text-sm font-medium text-gray-700">
@@ -553,7 +587,7 @@ export default function UploadPage() {
                       disabled={!validateBasicInfo()}
                       className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Continue to Data & Code
+                      {formData.studyType === 'data-only' ? 'Continue to Dataset Upload' : 'Continue to Data & Code'}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </button>
                   </div>
@@ -564,8 +598,15 @@ export default function UploadPage() {
             {activeTab === 'data-code' && (
               <div className="rounded-lg border bg-white shadow-sm">
                 <div className="p-6">
-                  <h3 className="text-lg font-medium">Data & Code Upload</h3>
-                  <p className="text-sm text-gray-500">Upload your research data and analysis code</p>
+                  <h3 className="text-lg font-medium">
+                    {formData.studyType === 'data-only' ? 'Dataset Upload' : 'Data & Code Upload'}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {formData.studyType === 'data-only' 
+                      ? 'Upload your research dataset to share with the community'
+                      : 'Upload your research data and analysis code for verification'
+                    }
+                  </p>
                 </div>
                 <div className="p-6 pt-0 space-y-4">
                   <div className="space-y-2">
@@ -577,11 +618,22 @@ export default function UploadPage() {
                         <div className="flex text-sm text-gray-600">
                           <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
                             <span>Upload a file</span>
-                            <input type="file" className="sr-only" required onChange={handleFileChange} />
+                            <input 
+                              type="file" 
+                              className="sr-only" 
+                              required 
+                              onChange={handleFileChange} 
+                              accept=".csv,.xlsx,.xls,.xlsm,.xltm,.xlam,.xlsb,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            />
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-gray-500">CSV, Excel, or other standard formats</p>
+                        <p className="text-xs text-gray-500">CSV (.csv), Excel (.xlsx, .xls, .xlsm), and other spreadsheet formats</p>
+                        {formData.studyType === 'research' && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            💡 Note: For automatic code verification, CSV format is recommended. Excel files will be uploaded but may require manual verification.
+                          </p>
+                        )}
                         {file && (
                           <p className="text-sm text-gray-900 mt-2">
                             Selected: {file.name}
@@ -591,46 +643,50 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Analysis Code*
-                    </label>
-                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                      <div className="space-y-1 text-center">
-                        <div className="flex text-sm text-gray-600">
-                          <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
-                            <span>Upload a file</span>
-                            <input type="file" className="sr-only" required onChange={handleCodeChange} />
-                          </label>
-                          <p className="pl-1">or drag and drop</p>
+                  {formData.studyType === 'research' && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Analysis Code*
+                      </label>
+                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <div className="space-y-1 text-center">
+                          <div className="flex text-sm text-gray-600">
+                            <label className="relative cursor-pointer bg-white rounded-md font-medium text-teal-600 hover:text-teal-500 focus-within:outline-none">
+                              <span>Upload a file</span>
+                              <input type="file" className="sr-only" required onChange={handleCodeChange} />
+                            </label>
+                            <p className="pl-1">or drag and drop</p>
+                          </div>
+                          <p className="text-xs text-gray-500">Python, R, Jupyter Notebook, etc.</p>
+                          {code && (
+                            <p className="text-sm text-gray-900 mt-2">
+                              Selected: {code.name}
+                            </p>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-500">Python, R, Jupyter Notebook, etc.</p>
-                        {code && (
-                          <p className="text-sm text-gray-900 mt-2">
-                            Selected: {code.name}
-                          </p>
-                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="space-y-2">
-                    <label htmlFor="expectedOutput" className="block text-sm font-medium text-gray-700">
-                      Expected Output (Final Output of Analysis)*
-                    </label>
-                    <textarea
-                      id="expectedOutput"
-                      value={formData.expectedOutput}
-                      onChange={handleInputChange}
-                      placeholder="Enter expected output of your analysis code (Terminal final output, etc.)"
-                      rows={4}
-                      className="w-full rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent px-3 py-2"
-                    ></textarea>
-                  </div>
+                  {formData.studyType === 'research' && (
+                    <div className="space-y-2">
+                      <label htmlFor="expectedOutput" className="block text-sm font-medium text-gray-700">
+                        Expected Output (Final Output of Analysis)*
+                      </label>
+                      <textarea
+                        id="expectedOutput"
+                        value={formData.expectedOutput}
+                        onChange={handleInputChange}
+                        placeholder="Enter expected output of your analysis code (Terminal final output, etc.)"
+                        rows={4}
+                        className="w-full rounded-md border border-gray-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent px-3 py-2"
+                      ></textarea>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      Readme File*
+                      Readme File (Optional)
                     </label>
                     <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                       <div className="space-y-1 text-center">

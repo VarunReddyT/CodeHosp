@@ -1,19 +1,20 @@
-import { NextResponse } from "next/server";
-import {adminAuth} from "@/lib/firebaseAdmin";
+import { adminAuth } from "@/lib/firebaseAdmin";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { handleApiError } from "@/lib/errorHandler";
 
 export async function POST(request: Request) {
     try {
         const { token } = await request.json();
         if (!token) {
-            console.error("Token is required");
-            return NextResponse.json({ message: "Token is required" }, { status: 400 });
+            return errorResponse("Token is required", 400);
         }
+        
         const decodedToken = await adminAuth.verifyIdToken(token);
         if (!decodedToken) {
-            console.error("Invalid token");
-            return NextResponse.json({ message: "Invalid token" }, { status: 401 });
+            return errorResponse("Invalid token", 401);
         }
-        const response = NextResponse.json({success: true});
+        
+        const response = successResponse({ success: true }, "Session created successfully");
         response.cookies.set({
             name: "token",
             value: token,
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
         });
         return response;
     } catch (error) {
-        console.error("Error creating session:", error);
-        return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
+        const { status, message } = handleApiError(error);
+        return errorResponse(message, status);
     }
 }

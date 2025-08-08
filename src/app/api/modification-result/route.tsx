@@ -1,43 +1,63 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/firebase";
-import { getDocs, getDoc, doc, updateDoc, collection, query, where } from "firebase/firestore";
-
+import { NextRequest } from "next/server";
+import { validateToken } from "@/lib/auth";
+import { successResponse, errorResponse } from "@/lib/apiResponse";
+import { handleApiError } from "@/lib/errorHandler";
+import { db } from "@/lib/firebaseAdmin";
 
 export async function PUT(request: NextRequest) {
-    const { studyId, status } = await request.json();
-    if (!studyId) {
-        return NextResponse.json({ error: "Missing study ID" }, { status: 400 });
+    const { user, error } = await validateToken(request);
+    if (!user) {
+        return errorResponse("Unauthorized", 401);
+    }
+    if (error) {
+        return errorResponse(error, 401);
     }
 
     try {
-        const q = query(collection(db, "modifications"), where("studyId", "==", studyId));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-            return NextResponse.json({ error: "No modifications found for this study" }, { status: 404 });
+        const { studyId, status } = await request.json();
+        if (!studyId) {
+            return errorResponse("Missing study ID", 400);
         }
-        const modData = querySnapshot.docs[0].data();
-        const modRef = doc(db, "modifications", querySnapshot.docs[0].id);
-        await updateDoc(modRef, {
+
+        const modificationsSnapshot = await db.collection("modifications")
+            .where("studyId", "==", studyId)
+            .get();
+            
+        if (modificationsSnapshot.empty) {
+            return errorResponse("No modifications found for this study", 404);
+        }
+        
+        const modDoc = modificationsSnapshot.docs[0];
+        const modData = modDoc.data();
+        
+        await modDoc.ref.update({
             approved: status,
             lastUpdated: new Date().toISOString()
         });
 
-        if(status === "true") {
-            const userRef = doc(db, "users", modData.userId);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-                const userData = userSnap.data();
-                await updateDoc(userRef, {
-                    points: (userData.points || 0) + 10,
-                    contributions: (userData.contributions || 0) + 1,
-                    lastUpdated: new Date().toISOString()
-                });
+        if (status === "true") {
+            const userRef = db.collection("users").doc(modData.userId);
+            const userDoc = await userRef.get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                if (userData) {
+                    await userRef.update({
+                        points: (userData.points || 0) + 10,
+                        contributions: (userData.contributions || 0) + 1,
+                        lastUpdated: new Date().toISOString()
+                    });
+                }
             }
         }
         
-        return NextResponse.json({ message: "Modification status updated successfully" }, { status: 200 });
+        return successResponse(
+            { modificationId: modDoc.id, status }, 
+            "Modification status updated successfully"
+        );
+        
     } catch (error) {
-        console.error("Error fetching modifications:", error);
-        return NextResponse.json({ error: "Failed to fetch modifications" }, { status: 500 });
+        const { status, message } = handleApiError(error);
+        return errorResponse(message, status);
     }
 }

@@ -128,7 +128,9 @@ export default function RunStudyPage() {
       try {
         setIsLoading(true)
         const response = await axios.get(`/api/study?id=${id}`)
-        const data = response.data.study
+        // Handle the new API response structure
+        const responseData = response.data.data || response.data
+        const data = responseData.study || responseData
         setStudyData(data)
 
         const codeResponse = await fetch(data.codeFile)
@@ -185,7 +187,17 @@ export default function RunStudyPage() {
   }
 
   const handleSaveModification = async () => {
-    if (!user || !studyData) return
+    if (!user) {
+      toast.error("Please log in to save modifications", {
+        duration: 3000,
+        position: 'top-right',
+      })
+      // Optionally redirect to login
+      window.location.href = '/login'
+      return
+    }
+    
+    if (!studyData) return
 
     try {
       await axios.post('/api/modify', {
@@ -238,6 +250,13 @@ export default function RunStudyPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Run Verification</h1>
           <p className="text-gray-600 mt-1">Verify the results of &quot;{studyData.title}&quot;</p>
+          {!user && (
+            <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md">
+              <p className="text-sm text-blue-700">
+                You can run and modify code without logging in. <Link href="/login" className="font-medium underline hover:no-underline">Log in</Link> to save your modifications.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -505,7 +524,7 @@ export default function RunStudyPage() {
                         className="inline-flex items-center justify-center rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50"
                       >
                         <Save className="h-4 w-4 mr-2" />
-                        Save Modifications (Optional)
+                        {user ? "Save Modifications (Optional)" : "Login to Save Modifications"}
                       </button>
                     </div>
                   </div>

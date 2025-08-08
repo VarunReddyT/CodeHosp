@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Search, TrendingUp, Calendar, Filter, Loader2 } from "lucide-react"
-import { getAuth } from "firebase/auth"
+import { getAuth, onAuthStateChanged } from "firebase/auth"
 import axios from "axios"
+import Cookies from "js-cookie"
+
 interface LeaderboardUser {
   id: string
   points: number,
@@ -22,23 +24,44 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-
-  const auth = getAuth()
-  const currentUserId = auth.currentUser?.uid || ""
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
+    const auth = getAuth()
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user)
+      fetchLeaderboard() // Refresh leaderboard when auth state changes
+    })
+
+    // Initial fetch
     fetchLeaderboard()
+
+    return () => unsubscribe()
   }, [])
 
   const fetchLeaderboard = async () => {
     try {
       setLoading(true)
-      const response = await axios.get("/api/leaderboard", {
-        headers: {
-          "x-user-id": currentUserId,
-        },
-      })
-      setData(response.data)
+      
+      // Get authentication token if user is logged in
+      const auth = getAuth()
+      const user = auth.currentUser
+      let headers = {}
+      
+      if (user) {
+        try {
+          const token = await user.getIdToken()
+          headers = {
+            'Authorization': `Bearer ${token}`,
+            'Cookie': `token=${Cookies.get('token') || token}`
+          }
+        } catch (authError) {
+          console.log("Auth token not available, fetching public leaderboard")
+        }
+      }
+      
+      const response = await axios.get("/api/leaderboard", { headers })
+      setData(response.data.data) // Backend now returns data in data property
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred")
     } finally {
@@ -98,7 +121,29 @@ export default function LeaderboardPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">PeerPoints Leaderboard</h1>
           <p className="text-gray-600 mt-1">Recognizing top contributors to scientific reproducibility</p>
-            <p className="text-sm text-teal-600 mt-1">Your current rank: #{data?.currentUserRank}</p>
+          {data?.currentUserRank !== undefined && data?.currentUserRank !== -1 && (
+            <span className="text-sm text-teal-600 mt-1">
+              Your current rank: #{data.currentUserRank}
+              {data.currentUserRank === 0 && " (Not in top 100)"}
+            </span>
+          )}
+          {data?.currentUserRank === -1 && (
+            <span className="text-sm text-gray-500 mt-1">Login to see your rank</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchLeaderboard}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <TrendingUp className="h-4 w-4 mr-2" />
+            )}
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -188,8 +233,15 @@ export default function LeaderboardPage() {
                   {filteredLeaderboard.length > 0 ? (
                     filteredLeaderboard.map((user) => {
                       const rank = data!.leaderboard.findIndex((u) => u.id === user.id) + 1
+                      const auth = getAuth()
+                      const currentUserId = auth.currentUser?.uid
+                      const isCurrentUser = currentUserId === user.id
+                      
                       return (
-                        <tr key={user.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={user.id} 
+                          className={`hover:bg-gray-50 ${isCurrentUser ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
+                        >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               {rank <= 3 ? (
@@ -207,15 +259,20 @@ export default function LeaderboardPage() {
                               ) : (
                                 <div className="text-gray-900 font-medium w-8 text-center">{rank}</div>
                               )}
+                              {isCurrentUser && (
+                                <span className="ml-2 text-xs text-teal-600 font-medium">You</span>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                                <span className="font-medium text-gray-600">{getAvatarInitials(user.displayName)}</span>
+                              <div className={`flex-shrink-0 h-10 w-10 rounded-full ${isCurrentUser ? 'bg-teal-200' : 'bg-gray-200'} flex items-center justify-center`}>
+                                <span className={`font-medium ${isCurrentUser ? 'text-teal-700' : 'text-gray-600'}`}>
+                                  {getAvatarInitials(user.displayName)}
+                                </span>
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className={`text-sm font-medium ${isCurrentUser ? 'text-teal-700' : 'text-gray-900'}`}>
                                   <Link href={`/profile/${user.id}`} className="hover:text-teal-600">
                                     {getDisplayName(user.displayName)}
                                   </Link> 
@@ -224,7 +281,9 @@ export default function LeaderboardPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-teal-600">{user.points.toLocaleString()}</div>
+                            <div className={`text-sm font-medium ${isCurrentUser ? 'text-teal-700' : 'text-teal-600'}`}>
+                              {user.points.toLocaleString()}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-500">{user.contributions || 0}</div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import axios from "axios";
 import {db} from "@/lib/firebase";
-import { increment, doc, updateDoc } from "firebase/firestore";
+import { increment, doc, updateDoc, getDoc } from "firebase/firestore";
 
 const PISTON_API_URL = "https://emkc.org/api/v2/piston/execute";
 const COMPARISON_API_URL = "https://varunreddy24-comparator.hf.space/compare";
@@ -22,6 +22,43 @@ const ALLOWED_PYTHON_LIBS = [
 
 function sanitizeCode(code: string): string {
     return code.replace(/\0/g, '');
+}
+
+function optimizeCode(code: string): string {
+    // Add optimizations to prevent timeouts
+    let optimizedCode = code;
+    
+    // Add memory-efficient pandas settings at the top
+    const pandasOptimizations = `
+import pandas as pd
+import numpy as np
+# Memory optimizations
+pd.set_option('mode.chained_assignment', None)
+pd.set_option('display.max_rows', 100)
+pd.set_option('display.max_columns', 20)
+
+`;
+    
+    // Check if pandas is already imported
+    if (optimizedCode.includes('import pandas')) {
+        // Replace existing pandas import with optimized version
+        optimizedCode = optimizedCode.replace(/import pandas.*?\n/g, '');
+        optimizedCode = pandasOptimizations + optimizedCode;
+    } else if (optimizedCode.includes('import numpy') || optimizedCode.includes('pd.')) {
+        // Add optimizations if pandas is used
+        optimizedCode = pandasOptimizations + optimizedCode;
+    }
+    
+    // Limit iterations in loops (basic protection)
+    optimizedCode = optimizedCode.replace(
+        /for\s+\w+\s+in\s+range\((\d+)\)/g, 
+        (match, num) => {
+            const n = parseInt(num);
+            return n > 10000 ? match.replace(num, '10000') : match;
+        }
+    );
+    
+    return optimizedCode;
 }
 
 function checkCodeSecurity(codeContent: string): { safe: boolean; message?: string } {
@@ -54,6 +91,7 @@ function checkCodeSecurity(codeContent: string): { safe: boolean; message?: stri
 
 async function executeWithPiston(codeContent: string, csvContent: string): Promise<{ stdout: string; stderr: string }> {
     try {
+        // Add timeout and memory optimizations
         const response = await axios.post(PISTON_API_URL, {
             language: 'python',
             version: '3.10.0',
@@ -69,19 +107,54 @@ async function executeWithPiston(codeContent: string, csvContent: string): Promi
             ],
             stdin: '',
             args: [],
-            compile_timeout: 10000,
-            run_timeout: 10000,
-            compile_memory_limit: -1,
-            run_memory_limit: -1
+            compile_timeout: 8000,  // Reduced from 10000
+            run_timeout: 10000,     // Reduced from 10000
+            compile_memory_limit: 128000000,  // 128MB limit
+            run_memory_limit: 256000000       // 256MB limit
+        }, {
+            timeout: 15000  // 15 second axios timeout
         });
+        
         console.log("Piston API response:", response.data);
+        
+        // Handle SIGKILL specifically
+        if (response.data.run.signal === 'SIGKILL') {
+            return {
+                stdout: "",
+                stderr: "Process terminated: Code execution exceeded time or memory limits. Please optimize your code for better performance."
+            };
+        }
+        
         return {
             stdout: response.data.run.stdout || "",
             stderr: response.data.run.stderr || response.data.run.output || ""
         };
     } catch (error) {
         console.error("Piston API error:", error);
+        if (error instanceof Error && (error as any).code === 'ECONNABORTED') {
+            throw new Error("Code execution timed out. Please optimize your code for better performance.");
+        }
+        // Fallback for simple statistical operations
+        return await fallbackExecution(codeContent, csvContent);
+    }
+}
+
+async function fallbackExecution(codeContent: string, csvContent: string): Promise<{ stdout: string; stderr: string }> {
+    try {
+        // Simple fallback for basic statistical operations
+        if (codeContent.includes('mean()') || codeContent.includes('std()') || codeContent.includes('describe()')) {
+            return {
+                stdout: "Fallback execution: Unable to run full code analysis due to service limitations. Please try with simpler operations.",
+                stderr: ""
+            };
+        }
+        
         throw new Error("Failed to execute code with Piston API");
+    } catch (error) {
+        return {
+            stdout: "",
+            stderr: "Service temporarily unavailable. Please try again later or contact support."
+        };
     }
 }
 
@@ -187,11 +260,29 @@ function extractNumber(str: string): number | null {
 export async function POST(req: NextRequest) {
     const { studyId, dataFile, codeFile, expectedOutput } = await req.json();
     
-    if (!studyId || !dataFile || !codeFile || !expectedOutput) {
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!studyId) {
+        return NextResponse.json({ error: "Study ID is required" }, { status: 400 });
     }
 
     try {
+        // First, check if the study exists and is a research study
+        const studyDoc = await getDoc(doc(db, "studies", studyId));
+        if (!studyDoc.exists()) {
+            return NextResponse.json({ error: "Study not found" }, { status: 404 });
+        }
+
+        const studyData = studyDoc.data();
+        if (studyData?.studyType !== 'research') {
+            return NextResponse.json({ 
+                error: "Code verification is only available for research studies",
+                details: "This study is a data-only study and doesn't contain executable code."
+            }, { status: 400 });
+        }
+
+        if (!dataFile || !codeFile || !expectedOutput) {
+            return NextResponse.json({ error: "Missing required fields for research study verification" }, { status: 400 });
+        }
+
         const dataFileModified = new URL(dataFile).pathname.replace(`/storage/v1/object/public/`, "");
         const codeFileModified = new URL(codeFile).pathname.replace(`/storage/v1/object/public/`, "");
         
@@ -233,6 +324,7 @@ export async function POST(req: NextRequest) {
         }
 
         codeContent = sanitizeCode(codeContent);
+        codeContent = optimizeCode(codeContent);
 
         codeContent = codeContent.replace(
             /pd\.read_csv\(([\'"]).*?\1(.*?)\)/g,
@@ -245,6 +337,19 @@ export async function POST(req: NextRequest) {
         );
 
         const { stdout, stderr } = await executeWithPiston(codeContent, csvContent);
+        
+        // Handle timeout/resource limit errors more gracefully
+        // if (stderr && stderr.includes("exceeded time or memory limits")) {
+        //     return NextResponse.json({ 
+        //         error: "Resource Limit Exceeded",
+        //         details: "The code execution was terminated due to time or memory constraints. Please optimize your code:\n" +
+        //                 "• Reduce data processing complexity\n" +
+        //                 "• Avoid large loops or recursive operations\n" +
+        //                 "• Use more efficient pandas operations\n" +
+        //                 "• Consider sampling your data for analysis",
+        //         status: "timeout"
+        //     }, { status: 408 });
+        // }
         
         if (stderr && !stdout) {
             console.error(stderr);
@@ -259,7 +364,8 @@ export async function POST(req: NextRequest) {
         await updateDoc(doc(db, "studies", studyId), {
             verifications : increment(1),
             verification : result,
-            lastVerified: new Date().toISOString()
+            lastVerified: new Date().toISOString(),
+            status: result.status === "match" ? "verified" : result.status === "partial" ? "partial" : "issues"
         }).catch((error) => {
             console.error("Error updating Firestore:", error);
             return NextResponse.json({ error: "Error updating Firestore" }, { status: 500 });

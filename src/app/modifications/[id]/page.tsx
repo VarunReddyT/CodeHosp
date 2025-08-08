@@ -45,7 +45,10 @@ export default function UserStudies() {
                     setError("Failed to fetch studies")
                     return;
                 }
-                setStudies(response.data)
+                // Handle the new API response structure
+                const responseData = response.data.data || response.data
+                const studiesArray = Array.isArray(responseData) ? responseData : []
+                setStudies(studiesArray)
             } catch (err) {
                 console.error("Error fetching user studies:", err)
                 setError(err instanceof Error ? err.message : "Failed to load studies")
