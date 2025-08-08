@@ -135,11 +135,11 @@ async function executeWithPiston(codeContent: string, csvContent: string): Promi
             throw new Error("Code execution timed out. Please optimize your code for better performance.");
         }
         // Fallback for simple statistical operations
-        return await fallbackExecution(codeContent, csvContent);
+        return await fallbackExecution(codeContent);
     }
 }
 
-async function fallbackExecution(codeContent: string, _csvContent: string): Promise<{ stdout: string; stderr: string }> {
+async function fallbackExecution(codeContent: string): Promise<{ stdout: string; stderr: string }> {
     try {
         // Simple fallback for basic statistical operations
         if (codeContent.includes('mean()') || codeContent.includes('std()') || codeContent.includes('describe()')) {
