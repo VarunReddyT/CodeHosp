@@ -123,6 +123,7 @@ async function compareOutputsAPI(output: string, expectedOutput: string) {
             result: response.data.result
         };
     } catch (error) {
+        console.log(error);
         return {
             similarity: 0,
             result: "Comparison failed"

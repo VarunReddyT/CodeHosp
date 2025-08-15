@@ -1,5 +1,28 @@
 import { db } from "@/lib/firebaseAdmin";
 
+
+export interface StudyDocumentInput {
+    title: string;
+    authors: string[];
+    institution: string;
+    date: string;
+    category: string;
+    status: string;
+    participants: number;
+    reproductions: number;
+    issues: string[];
+    tags: string[];
+    abstract: string;
+    studyType: string;
+    dataFile: string;
+    codeFile: string | null;
+    readmeFile: string | null;
+    expectedOutput: string | null;
+    methodology: string;
+    verification: unknown;
+    userId: string;
+}
+
 export async function createStudyDocument({
     title,
     authors,
@@ -20,7 +43,7 @@ export async function createStudyDocument({
     methodology,
     verification,
     userId
-}: any) {
+}: StudyDocumentInput) {
     return db.collection("studies").add({
         title,
         authors,
@@ -62,11 +85,12 @@ export async function updateUserPoints(userId: string, additionalPoints: number)
     }
 }
 
-export function calculatePoints(studyType: string, verificationResult: any) {
-    if (studyType === 'research' && verificationResult) {
-        if (verificationResult.status === "match" || verificationResult.status === "close") {
+export function calculatePoints(studyType: string, verificationResult: unknown) {
+    if (studyType === 'research' && verificationResult && typeof verificationResult === 'object' && verificationResult !== null) {
+        const status = (verificationResult as { status?: string }).status;
+        if (status === "match" || status === "close") {
             return 100;
-        } else if (verificationResult.status === "partial") {
+        } else if (status === "partial") {
             return 40;
         }
     } else if (studyType === 'data-only') {
